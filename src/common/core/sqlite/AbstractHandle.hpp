@@ -92,8 +92,18 @@ public:
     void setTag(Tag tag);
     Tag getTag();
 
+
     bool executeStatement(const Statement &statement);
+
     bool executeSQL(const UnsafeStringView &sql);
+
+    /**
+   * 仅仅对 FTS 5 的扩展。
+   * @param sql
+   * @param callback
+   * @return true if the SQL is executed successfully, false if the SQL is executed with error.
+   */
+    bool executeSQLForResult(const UnsafeStringView &sql, const std::function<void(sqlite3_stmt &stmt)> &callback);
 
 protected:
     int m_customOpenFlag;

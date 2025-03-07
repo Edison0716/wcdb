@@ -29,6 +29,7 @@
 #include "Path.hpp"
 #include "SQLite.h"
 #include "StringView.hpp"
+#include <iostream>
 
 namespace WCDB {
 
@@ -108,11 +109,20 @@ bool AbstractHandle::open()
             succeed = APIExit(sqlite3_open_v2(
             m_path.data(), &m_handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_MAINDB_READONLY, 0));
         } else {
-            succeed
-            = APIExit(sqlite3_open_v2(m_path.data(), &m_handle, m_customOpenFlag, 0));
+            succeed = APIExit(sqlite3_open_v2(m_path.data(), &m_handle, m_customOpenFlag, nullptr));
         }
         if (!succeed) {
             m_handle = nullptr;
+        }
+        if (m_handle != nullptr) {
+            int rc = sqlite3_enable_load_extension(m_handle, 1);
+            if (rc != SQLITE_OK) {
+                abort();
+            }
+            rc = sqlite3_load_extension(m_handle, "libsimple", nullptr, nullptr);
+            if (rc != SQLITE_OK) {
+                abort();
+            }
         }
     }
     return succeed;
@@ -158,6 +168,30 @@ bool AbstractHandle::executeSQL(const UnsafeStringView &sql)
         handleStatement.finalize();
     }
     return succeed;
+}
+
+/**
+ * 定义阻塞式实现
+ * @tparam RowCallback
+ * @param sql
+ * @param callback
+ * @return
+ */
+bool AbstractHandle::executeSQLForResult(const UnsafeStringView &sql, const std::function<void(sqlite3_stmt &stmt)> &callback)
+{
+    WCTAssert(isOpened());
+    HandleStatement handleStatement(this);
+    bool success = handleStatement.prepareSQL(sql);
+    sqlite3_stmt *stmt = handleStatement.m_stmt;
+    int stepResult;
+    while ((stepResult = sqlite3_step(stmt)) == SQLITE_ROW) {
+        callback(*stmt);
+    }
+    if (stepResult != SQLITE_DONE) {
+        success = false;
+    }
+    handleStatement.finalize();
+    return success;
 }
 
 bool AbstractHandle::executeStatement(const Statement &statement)

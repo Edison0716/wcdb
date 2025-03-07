@@ -375,8 +375,8 @@ bool HandleStatement::prepareSQL(const UnsafeStringView &sql)
     WCTRemedialAssert(!isPrepared(), "Last statement is not finalized.", finalize(););
     WCTAssert(sql.length() > 0);
 
-    bool result = APIExit(
-    sqlite3_prepare_v2(getRawHandle(), sql.data(), -1, &m_stmt, nullptr), sql);
+    const bool result = APIExit(sqlite3_prepare_v2(getRawHandle(), sql.data(), -1, &m_stmt, nullptr), sql);
+
     m_done = false;
     m_fullTrace = getHandle()->isFullSQLEnable();
     if (!result) {

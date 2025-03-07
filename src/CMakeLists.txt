@@ -1,8 +1,15 @@
 cmake_minimum_required(VERSION 3.13)
 project(WCDB)
 
+include(FetchContent)
 include(utility.cmake)
 include(../sqlcipher/sqlcipher.cmake)
+
+FetchContent_Declare(simple_native
+        GIT_REPOSITORY https://github.com/SageMik/sqlite3_simple
+        GIT_TAG Nv1.0.5
+)
+FetchContent_MakeAvailable(simple_native)
 
 if (NOT DEFINED WCDB_ZSTD)
     set(WCDB_ZSTD ON CACHE BOOL "Build WCDB with zstd" FORCE)
@@ -248,7 +255,7 @@ else ()
 endif()
 
 # export public headers
-if (WCDB_CPP) 
+if (WCDB_CPP)
     file(REMOVE_RECURSE ${EXPORT_PUBLIC_HEADERS_PATH})
     file(MAKE_DIRECTORY ${EXPORT_PUBLIC_HEADERS_PATH}/WCDB)
     file(COPY ${WCDB_PUBLIC_HEADERS} DESTINATION ${EXPORT_PUBLIC_HEADERS_PATH}/WCDB)
@@ -327,27 +334,27 @@ if (WIN32)
         add_definitions(-D_WIN64 -DWIN64)
     endif ()
 
-    if (BUILD_SHARED_LIBS) 
+    if (BUILD_SHARED_LIBS)
         set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
         #add_definitions(-DWCDB_DLL -DWCDB_BUILD_DLL)
     endif ()
-    
+
     if (BUILD_SHARED_LIBS)
-        target_compile_options(sqlcipher PRIVATE 
+        target_compile_options(sqlcipher PRIVATE
             $<$<CONFIG:>:/MD> #---------|
             $<$<CONFIG:Debug>:/MDd> #---|-- Dynamic link the runtime libraries
             $<$<CONFIG:Release>:/MD> #--|
             $<$<CONFIG:RelWithDebInfo>:/MD>
         )
     else ()
-        target_compile_options(sqlcipher PRIVATE 
+        target_compile_options(sqlcipher PRIVATE
             $<$<CONFIG:>:/MT> #---------|
             $<$<CONFIG:Debug>:/MTd> #---|-- Statically link the runtime libraries
             $<$<CONFIG:Release>:/MT> #--|
             $<$<CONFIG:RelWithDebInfo>:/MT>
         )
     endif()
-    
+
     add_compile_options(/MP)
     add_compile_options(/wd4068)  # Disable unknown pragma warnings
     add_compile_options(/wd4996)
@@ -390,7 +397,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(${TARGET_NAME} ${WCDB_COMMON_SRC})
-target_link_libraries(${TARGET_NAME} PRIVATE sqlcipher)
+target_link_libraries(${TARGET_NAME} PRIVATE sqlcipher simple)
 target_include_directories(${TARGET_NAME} PUBLIC ${WCDB_COMMON_INCLUDES})
 
 if (WCDB_ZSTD)

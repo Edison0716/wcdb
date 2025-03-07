@@ -314,7 +314,27 @@ OptionalMultiRows HandleOperation::getAllRowsFromStatement(const Statement &stat
 bool HandleOperation::execute(const Statement &statement)
 {
     GetHandleOrReturnValue(statement.isWriteStatement(), false);
-    bool succeed = handle->execute(statement);
+    const bool succeed = handle->execute(statement);
+    if (!succeed) {
+        assignErrorToDatabase(handle->getError());
+    }
+    return succeed;
+}
+
+bool HandleOperation::executeSQL(const UnsafeStringView &sql)
+{
+    GetHandleOrReturnValue(true, false);
+    const bool succeed = handle->executeSQL(sql);
+    if (!succeed) {
+        assignErrorToDatabase(handle->getError());
+    }
+    return succeed;
+}
+
+bool HandleOperation::executeSQLForResult(const UnsafeStringView &sql, const std::function<void(sqlite3_stmt &stmt)> &callback)
+{
+    GetHandleOrReturnValue(true, false);
+    const bool succeed = handle->executeSQLForResult(sql, callback);
     if (!succeed) {
         assignErrorToDatabase(handle->getError());
     }

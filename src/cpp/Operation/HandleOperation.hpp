@@ -25,6 +25,7 @@
 #pragma once
 
 #include "BaseOperation.hpp"
+#include "sqlcipher/sqlite3.h"
 #include "Value.hpp"
 
 namespace WCDB {
@@ -163,6 +164,10 @@ public:
      @return YES if no error occurs.
      */
     bool execute(const Statement &statement);
+
+    bool executeSQLForResult(const UnsafeStringView &sql, const std::function<void(sqlite3_stmt &stmt)> &callback);
+
+    bool executeSQL(const UnsafeStringView &sql);
 
 #pragma mark - Transaction
 public:
