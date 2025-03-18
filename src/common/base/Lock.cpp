@@ -179,8 +179,8 @@ bool SharedLock::writeSafety() const
 }
 
 #pragma mark - Lock Guard
-LockGuard::LockGuard(const std::nullptr_t &) : m_lock(nullptr)
-{
+LockGuard::LockGuard(const std::nullptr_t &) : m_lock(nullptr){
+
 }
 
 LockGuard::LockGuard(SharedLock &lock) : m_lock(&lock)

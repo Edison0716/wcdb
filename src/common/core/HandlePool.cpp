@@ -28,10 +28,6 @@
 #include "FileManager.hpp"
 #include "InnerHandle.hpp"
 #include "Notifier.hpp"
-#include "Path.hpp"
-#include "Serialization.hpp"
-#include <algorithm>
-#include <map>
 
 namespace WCDB {
 
@@ -61,9 +57,7 @@ void HandlePool::blockade()
 
 void HandlePool::unblockade()
 {
-    WCTRemedialAssert(m_concurrency.writeSafety(),
-                      "Unblockade should not be called without blockaded.",
-                      return;);
+    WCTRemedialAssert(m_concurrency.writeSafety(), "Unblockade should not be called without blockaded.", return;);
     m_concurrency.unlock();
 }
 
@@ -160,7 +154,7 @@ const std::set<std::shared_ptr<InnerHandle>> &HandlePool::getHandlesOfSlot(Handl
     return m_handles[slot];
 }
 
-size_t HandlePool::numberOfAliveHandlesInSlot(HandleSlot slot) const
+size_t HandlePool::numberOfAliveHandlesInSlot(const HandleSlot slot) const
 {
     SharedLockGuard concurrencyGuard(m_concurrency);
     SharedLockGuard memoryGuard(m_memory);
@@ -169,9 +163,9 @@ size_t HandlePool::numberOfAliveHandlesInSlot(HandleSlot slot) const
 
 RecyclableHandle HandlePool::flowOut(HandleType type, bool writeHint)
 {
-    HandleSlot slot = slotOfHandleType(type);
+    const HandleSlot slot = slotOfHandleType(type);
     WCTAssert(slot < HandleSlotCount);
-    HandleCategory category = categoryOfHandleType(type);
+    const HandleCategory category = categoryOfHandleType(type);
     WCTAssert(category < HandleCategoryCount);
 
     ReferencedHandle &referencedHandle = m_threadedHandles.getOrCreate().at(category);
@@ -182,9 +176,7 @@ RecyclableHandle HandlePool::flowOut(HandleType type, bool writeHint)
             WCTAssert(referencedHandle.reference > 0);
             WCTAssert(referencedHandle.handle->isUsingInThread(Thread::getCurrentThreadId()));
             ++referencedHandle.reference;
-            return RecyclableHandle(
-            referencedHandle.handle,
-            std::bind(&HandlePool::flowBack, this, type, std::placeholders::_1));
+            return RecyclableHandle(referencedHandle.handle,std::bind(&HandlePool::flowBack, this, type, std::placeholders::_1));
         }
     }
 

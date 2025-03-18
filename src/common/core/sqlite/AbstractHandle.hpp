@@ -33,8 +33,6 @@
 #include "Tag.hpp"
 #include "WCDBOptional.hpp"
 #include "WINQ.h"
-#include <set>
-#include <tuple>
 #include <vector>
 
 namespace WCDB {
@@ -90,7 +88,7 @@ public:
     bool isInTransaction();
 
     void setTag(Tag tag);
-    Tag getTag();
+    Tag getTag() const;
 
 
     bool executeStatement(const Statement &statement);

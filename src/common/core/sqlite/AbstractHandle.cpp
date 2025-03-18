@@ -152,7 +152,7 @@ void AbstractHandle::setTag(Tag tag)
     m_tag = tag;
 }
 
-Tag AbstractHandle::getTag()
+Tag AbstractHandle::getTag() const
 {
     return m_tag;
 }
@@ -370,12 +370,10 @@ Optional<bool> AbstractHandle::tableExists(const UnsafeStringView &table)
 Optional<bool>
 AbstractHandle::tableExists(const Schema &schema, const UnsafeStringView &table)
 {
-    StatementSelect statement
-    = StatementSelect().select(1).from(TableOrSubquery(table).schema(schema)).limit(1);
-
+    const StatementSelect statement = StatementSelect().select(1).from(TableOrSubquery(table).schema(schema)).limit(1);
     HandleStatement handleStatement(this);
     markErrorAsIgnorable(Error::Code::Error);
-    bool succeed = handleStatement.prepare(statement);
+    const bool succeed = handleStatement.prepare(statement);
     Optional<bool> exists;
     if (succeed) {
         handleStatement.finalize();
@@ -413,8 +411,7 @@ bool AbstractHandle::addColumn(const Schema &schema,
 Optional<StringViewSet>
 AbstractHandle::getColumns(const Schema &schema, const UnsafeStringView &table)
 {
-    WCDB::StatementPragma statement
-    = StatementPragma().pragma(Pragma::tableInfo()).schema(schema).with(table);
+    const StatementPragma statement = StatementPragma().pragma(Pragma::tableInfo()).schema(schema).with(table);
     return getValues(statement, 1);
 }
 
@@ -423,8 +420,7 @@ AbstractHandle::getTableMeta(const Schema &schema, const UnsafeStringView &table
 {
     Optional<std::vector<ColumnMeta>> metas;
     HandleStatement handleStatement(this);
-    if (handleStatement.prepare(
-        StatementPragma().pragma(Pragma::tableInfo()).schema(schema).with(table))) {
+    if (handleStatement.prepare(StatementPragma().pragma(Pragma::tableInfo()).schema(schema).with(table))) {
         bool succeed = false;
         std::vector<ColumnMeta> rows;
         while ((succeed = handleStatement.step()) && !handleStatement.done()) {

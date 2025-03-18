@@ -85,38 +85,28 @@ CommonCore::CommonCore()
 {
     Global::initialize();
 
-    Global::shared().setNotificationForLog(
-    NotifierLoggerName,
-    std::bind(&CommonCore::globalLog, this, std::placeholders::_1, std::placeholders::_2));
+    Global::shared().setNotificationForLog(NotifierLoggerName,std::bind(&CommonCore::globalLog, this, std::placeholders::_1, std::placeholders::_2));
 
-    Notifier::shared().setNotificationForPreprocessing(
-    NotifierPreprocessorName,
-    std::bind(&CommonCore::preprocessError, this, std::placeholders::_1));
+    Notifier::shared().setNotificationForPreprocessing(NotifierPreprocessorName,std::bind(&CommonCore::preprocessError, this, std::placeholders::_1));
 
     m_operationQueue->run();
 
     //config FTS
-    registerTokenizer(BuiltinTokenizer::OneOrBinary,
-                      FTS3TokenizerModuleTemplate<OneOrBinaryTokenizer>::specialize());
-    registerTokenizer(BuiltinTokenizer::LegacyOneOrBinary,
-                      FTS3TokenizerModuleTemplate<OneOrBinaryTokenizer>::specialize());
-    registerTokenizer(
-    BuiltinTokenizer::Verbatim,
-    FTS5TokenizerModuleTemplate<OneOrBinaryTokenizer>::specializeWithContext(nullptr));
-    registerTokenizer(
-    BuiltinTokenizer::Pinyin,
-    FTS5TokenizerModuleTemplate<PinyinTokenizer>::specializeWithContext(nullptr));
+    registerTokenizer(BuiltinTokenizer::OneOrBinary,FTS3TokenizerModuleTemplate<OneOrBinaryTokenizer>::specialize());
+
+    registerTokenizer(BuiltinTokenizer::LegacyOneOrBinary, FTS3TokenizerModuleTemplate<OneOrBinaryTokenizer>::specialize());
+
+    registerTokenizer(BuiltinTokenizer::Verbatim,FTS5TokenizerModuleTemplate<OneOrBinaryTokenizer>::specializeWithContext(nullptr));
+
+    registerTokenizer(BuiltinTokenizer::Pinyin,FTS5TokenizerModuleTemplate<PinyinTokenizer>::specializeWithContext(nullptr));
 
 #ifdef __ANDROID__
-    registerTokenizer(BuiltinTokenizer::MMICU,
-                      FTS3TokenizerModuleTemplate<MMICUTokenizer>::specialize());
+    registerTokenizer(BuiltinTokenizer::MMICU, FTS3TokenizerModuleTemplate<MMICUTokenizer>::specialize());
 #endif
 
-    registerAuxiliaryFunction(
-    BuiltinAuxiliaryFunction::SubstringMatchInfo,
-    FTS5AuxiliaryFunctionTemplate<SubstringMatchInfo>::specializeWithContext(nullptr));
-    registerScalarFunction(DecompressFunctionName,
-                           ScalarFunctionTemplate<DecompressFunction>::specialize(2));
+    registerAuxiliaryFunction(BuiltinAuxiliaryFunction::SubstringMatchInfo,FTS5AuxiliaryFunctionTemplate<SubstringMatchInfo>::specializeWithContext(nullptr));
+
+    registerScalarFunction(DecompressFunctionName,ScalarFunctionTemplate<DecompressFunction>::specialize(2));
 }
 
 CommonCore::~CommonCore()
@@ -206,8 +196,7 @@ void CommonCore::preprocessError(Error& error)
 }
 
 #pragma mark - ScalarFunction
-void CommonCore::registerScalarFunction(const UnsafeStringView& name,
-                                        const ScalarFunctionModule& module)
+void CommonCore::registerScalarFunction(const UnsafeStringView& name,const ScalarFunctionModule& module) const
 {
     m_scalarFunctionModules->add(name, module);
 }

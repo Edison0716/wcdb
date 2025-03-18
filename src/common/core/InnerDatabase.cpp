@@ -73,8 +73,7 @@ InnerDatabase::InnerDatabase(const UnsafeStringView &path)
 , m_mergeLogic(this)
 {
     StringViewMap<Value> info;
-    DBOperationNotifier::shared().notifyOperation(
-    this, DBOperationNotifier::Operation::Create, info);
+    DBOperationNotifier::shared().notifyOperation(this, DBOperationNotifier::Operation::Create, info);
 }
 
 InnerDatabase::~InnerDatabase() = default;
@@ -445,8 +444,7 @@ bool InnerDatabase::setupHandle(HandleType type, InnerHandle *handle)
                 info.insert_or_assign(MonitorInfoKeyTableCount, tableCount);
                 info.insert_or_assign(MonitorInfoKeyIndexCount, indexCount);
                 info.insert_or_assign(MonitorInfoKeyTriggerCount, triggerCount);
-                info.insert_or_assign(MonitorInfoKeyHandleCount,
-                                      numberOfAliveHandlesInSlot(slot) + 1);
+                info.insert_or_assign(MonitorInfoKeyHandleCount, numberOfAliveHandlesInSlot(slot) + 1);
                 DBOperationNotifier::shared().notifyOperation(
                 this, DBOperationNotifier::Operation::OpenHandle, info);
             }
@@ -649,8 +647,7 @@ void InnerDatabase::tryLoadIncremetalMaterial()
     }
 
     const StringView &databasePath = getPath();
-    StringView materialPath
-    = Repair::Factory::incrementalMaterialPathForDatabase(databasePath);
+    StringView materialPath = Repair::Factory::incrementalMaterialPathForDatabase(databasePath);
     auto exist = FileManager::fileExists(materialPath);
     if (!exist.hasValue()) {
         return;

@@ -79,8 +79,7 @@ protected:
 
 #pragma mark - ScalarFunction
 public:
-    void registerScalarFunction(const UnsafeStringView& name,
-                                const ScalarFunctionModule& module);
+    void registerScalarFunction(const UnsafeStringView& name,const ScalarFunctionModule& module) const;
     std::shared_ptr<Config> scalarFunctionConfig(const UnsafeStringView& ScalarFunctionName);
     bool scalarFunctionExists(const UnsafeStringView& name) const;
 

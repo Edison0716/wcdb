@@ -242,7 +242,7 @@ public:
     }
     void insert_or_assign(const UnsafeStringView& key, T&& value)
     {
-        StringView stringKey = StringView(key);
+        auto stringKey = StringView(key);
         auto find = Super::find(stringKey);
         if (find != Super::end()) {
             find->second = std::move(value);

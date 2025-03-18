@@ -90,7 +90,7 @@ bool HandleStatement::prepare(const Statement &statement)
         return false;
     }
 
-    auto statementType = statement.getType();
+    const auto statementType = statement.getType();
     if (statementType != Syntax::Identifier::Type::InsertSTMT
         && statementType != Syntax::Identifier::Type::DeleteSTMT
         && statementType != Syntax::Identifier::Type::UpdateSTMT
@@ -99,7 +99,7 @@ bool HandleStatement::prepare(const Statement &statement)
     }
 
     const Error &error = getHandle()->getError();
-    if (error.code() != Error::Code::Error || (int) error.getExtCode() != 0) {
+    if (error.code() != Error::Code::Error || static_cast<int>(error.getExtCode()) != 0) {
         return false;
     }
     const StringView &msg = error.getMessage();
@@ -109,7 +109,7 @@ bool HandleStatement::prepare(const Statement &statement)
         return false;
     }
 
-    InnerHandle *innerHandle = dynamic_cast<InnerHandle *>(getHandle());
+    auto *innerHandle = dynamic_cast<InnerHandle *>(getHandle());
     if (!innerHandle) {
         return false;
     }
@@ -242,9 +242,8 @@ bool HandleStatement::tryExtractColumnInfo(const Statement &statement,
     if (schemaSpecified) {
         if (tableName.hasPrefix(MigrationInfo::getUnionedViewPrefix())
             && schemaName.compare(Syntax::tempSchema) == 0) {
-            size_t prefixLength = strlen(MigrationInfo::getUnionedViewPrefix());
-            tableName = StringView(tableName.data() + prefixLength,
-                                   tableName.length() - prefixLength);
+            const size_t prefixLength = strlen(MigrationInfo::getUnionedViewPrefix());
+            tableName = StringView(tableName.data() + prefixLength, tableName.length() - prefixLength);
             schemaName = "";
             schemaSpecified = false;
         } else if (schemaName.hasPrefix(MigrationDatabaseInfo::getSchemaPrefix())) {
@@ -269,7 +268,7 @@ bool HandleStatement::tryExtractColumnInfo(const Statement &statement,
         bool needCheckTable = false;
         switch (identifier.getType()) {
         case Syntax::Identifier::Type::Column: {
-            Syntax::Column &column = (Syntax::Column &) identifier;
+            auto &column = static_cast<Syntax::Column &>(identifier);
             if (isCompressingColumn) {
                 return;
             }
