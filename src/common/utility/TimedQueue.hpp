@@ -68,14 +68,11 @@ public:
         }
         bool notify = false;
         {
-            SteadyClock expired
-            = SteadyClock::now().steadyClockByAddingTimeInterval(delay);
-
+            SteadyClock expired = SteadyClock::now().steadyClockByAddingTimeInterval(delay);
             std::lock_guard<std::mutex> lockGuard(m_lock);
             if (m_stop) {
                 return;
             }
-
             auto iter = m_list.find(key);
             if (mode == Mode::ForwardOnly && iter != m_list.end() && iter->order() < expired) {
                 iter->value() = info;
@@ -100,7 +97,6 @@ public:
         }
         if (isExiting()) {
             stop();
-            return;
         }
     }
 
@@ -116,8 +112,7 @@ public:
 
     void waitUntilDone()
     {
-        while (m_running.load())
-            ;
+        while (m_running.load());
     }
 
     void loop(const ExpiredCallback &onElementExpired)

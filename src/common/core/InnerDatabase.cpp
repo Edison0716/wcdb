@@ -159,58 +159,71 @@ InnerDatabase::InitializedGuard InnerDatabase::initialize()
 {
     do {
         {
+            // Step 1: 获取共享锁，确保多线程访问安全，防止其他线程同时修改状态
             SharedLockGuard concurrencyGuard(m_concurrency);
             SharedLockGuard memoryGuard(m_memory);
+            // 如果数据库已经初始化，则直接返回共享锁
             if (m_initialized) {
                 return concurrencyGuard;
             }
         }
 
-        // Blocked initialization
+        // Step 2: 获取独占锁，确保初始化过程不会被其他线程干扰
         LockGuard concurrencyGuard(m_concurrency);
         LockGuard memoryGuard(m_memory);
+        // 再次检查是否已经初始化（可能在等待锁期间其他线程已完成初始化）
         if (m_initialized) {
-            // retry
+            // 如果已初始化，则重新进入循环进行检查
             continue;
         }
+        // 如果是内存数据库，直接标记为已初始化并跳过后续步骤
         if (m_isInMemory) {
             m_initialized = true;
             continue;
         }
+        // 设置错误路径，便于跟踪初始化过程中可能出现的错误
         CommonCore::shared().setThreadedErrorPath(path);
+        // 确保数据库目录存在，不存在则尝试创建
         if (!FileManager::createDirectoryWithIntermediateDirectories(Path::getDirectory(path))) {
+            // 记录错误信息并退出初始化
             assignWithSharedThreadedError();
             break;
         }
-        // vacuum
+        // Step 3: 执行 Vacuum 操作，优化数据库结构，提高性能
         {
             Repair::FactoryVacuum vacuumer = m_factory.vacuumer();
             if (!vacuumer.work()) {
+                // 如果 Vacuum 失败，记录错误信息并退出初始化
                 setThreadedError(vacuumer.getError());
                 break;
             }
         }
-        // retrieveRenewed
+        // Step 4: 执行 Renewer 操作，可能用于恢复或重建数据库
         {
             Repair::FactoryRenewer renewer = m_factory.renewer();
             if (!renewer.work()) {
+                // 如果 Renewer 失败，记录错误信息并退出初始化
                 setThreadedError(renewer.getError());
                 break;
             }
         }
+        // Step 5: 检查数据库文件是否存在
         auto exists = FileManager::fileExists(path);
         if (!exists.succeed()) {
+            // 如果检查失败，记录错误信息并退出初始化
             assignWithSharedThreadedError();
             break;
         }
-        // create file to make file identifier stable
+        // 如果数据库文件不存在，则尝试创建一个空文件，以确保文件标识符稳定
         if (!exists.value() && !FileManager::createFile(path)) {
             assignWithSharedThreadedError();
             break;
         }
+        // Step 6: 清空错误路径，标记初始化成功
         CommonCore::shared().setThreadedErrorPath(nullptr);
         m_initialized = true;
     } while (true);
+    // 如果初始化失败，则返回 nullptr
     return nullptr;
 }
 
@@ -700,30 +713,38 @@ void InnerDatabase::filterBackup(const BackupFilter &tableShouldBeBackedup)
 
 bool InnerDatabase::backup(bool interruptible)
 {
+    // 如果数据库为内存数据库，则无法备份，直接返回false
     if (m_isInMemory) {
         return false;
     }
+    // 初始化数据库，确保数据库处于可用状态
     InitializedGuard initializedGuard = initialize();
     if (!initializedGuard.valid()) {
-        return false; // mark as succeed if it's not an auto initialize action.
+        return false; // 如果初始化失败，则返回false
     }
 
+    // 断言：备份不能在事务处理中进行，防止数据不一致
     WCTRemedialAssert(
     !isInTransaction(), "Backup can't be run in transaction.", return false;);
 
+    // 断言：Lite Mode下不允许备份
     WCTRemedialAssert(!m_liteModeEnable, "Backup can't run in lite mode.", return false;);
 
+    // 获取备份操作句柄
     RecyclableHandle backupHandle = flowOut(HandleType::Backup);
     if (backupHandle == nullptr) {
         return false;
     }
 
+    // 获取备份加密句柄
     RecyclableHandle backupCipherHandle = flowOut(HandleType::BackupCipher);
     if (backupCipherHandle == nullptr) {
         return false;
     }
+    // 确保备份句柄和加密句柄不相同
     WCTAssert(backupHandle.get() != backupCipherHandle.get());
 
+    // 如果备份允许中断，则设置备份句柄为可中断状态，并检查是否需要中断
     if (interruptible) {
         backupHandle->markAsCanBeSuspended(true);
         if (checkShouldInterruptWhenClosing(ErrorTypeBackup)) {
@@ -731,17 +752,24 @@ bool InnerDatabase::backup(bool interruptible)
         }
     }
 
+    // 设置错误路径，便于错误追踪
     CommonCore::shared().setThreadedErrorPath(path);
 
+    // 创建备份对象
     Repair::FactoryBackup backup = m_factory.backup();
-    Repair::BackupHandleOperator &backupOperator
-    = backupHandle.getDecorative()->getOrCreateOperator<Repair::BackupHandleOperator>(OperatorBackup);
+    // 获取备份句柄的操作代理，用于处理备份相关操作
+    auto &backupOperator = backupHandle.getDecorative()->getOrCreateOperator<Repair::BackupHandleOperator>(OperatorBackup);
+    // 绑定共享和独占代理
     backup.setBackupSharedDelegate(&backupOperator);
     backup.setBackupExclusiveDelegate(&backupOperator);
+    // 确保备份加密句柄为CipherHandle类型
     WCTAssert(dynamic_cast<CipherHandle *>(backupCipherHandle.get()) != nullptr);
+    // 设置加密代理
     backup.setCipherDelegate(static_cast<CipherHandle *>(backupCipherHandle.get()));
 
+    // 执行备份操作，返回备份是否成功
     bool succeed = backup.work(getPath(), interruptible);
+    // 如果备份失败，根据错误级别决定是否忽略错误
     if (!succeed) {
         if (backup.getError().level == Error::Level::Ignore) {
             succeed = true;
@@ -749,7 +777,9 @@ bool InnerDatabase::backup(bool interruptible)
             setThreadedError(backup.getError());
         }
     }
+    // 清空错误路径
     CommonCore::shared().setThreadedErrorPath("");
+    // 返回备份结果
     return succeed;
 }
 
@@ -843,48 +873,73 @@ double InnerDatabase::retrieve(const ProgressCallback &onProgressUpdated)
         return 0;
     }
     double result = -1;
-    close([&result, &onProgressUpdated, this]() {
+    close([&result, &onProgressUpdated, this] {
+        // 1. 初始化数据库，确保数据库处于可用状态
         InitializedGuard initializedGuard = initialize();
+        // 如果初始化失败，则直接返回，不进行恢复操作
         if (!initializedGuard.valid()) {
             return;
         }
-
+        // 2. 获取备份操作句柄，用于读取备份数据
         RecyclableHandle backupHandle = flowOut(HandleType::AssembleBackup);
+        // 如果备份句柄获取失败，则无法进行恢复，直接返回
         if (backupHandle == nullptr) {
             return;
         }
+        // 3. 获取装配句柄，用于重建数据库文件
         RecyclableHandle assemblerHandle = flowOut(HandleType::Assemble);
+        // 如果装配句柄获取失败，则无法进行恢复，直接返回
         if (assemblerHandle == nullptr) {
             return;
         }
+        // 4. 标记装配句柄为可中断，允许恢复过程被暂停
         assemblerHandle->markAsCanBeSuspended(true);
+        // 5. 获取加密句柄，用于处理数据库加密解密
         RecyclableHandle cipherHandle = flowOut(HandleType::AssembleCipher);
+        // 如果加密句柄获取失败，则无法进行恢复，直接返回
         if (cipherHandle == nullptr) {
             return;
         }
+        // 6. 确保备份、装配和加密句柄是不同的对象，避免操作冲突
         WCTAssert(backupHandle.get() != assemblerHandle.get());
+        // 6.1 检查备份句柄与加密句柄是否相同
         WCTAssert(backupHandle.get() != cipherHandle.get());
+        // 6.2 检查装配句柄与加密句柄是否相同
         WCTAssert(assemblerHandle.get() != cipherHandle.get());
-
+        // 7. 确保备份和装配句柄尚未打开，防止干扰恢复过程
         WCTAssert(!backupHandle->isOpened());
+        // 7.1 检查装配句柄是否已打开
         WCTAssert(!assemblerHandle->isOpened());
-
+        // 8. 设置错误路径，便于在恢复过程中追踪错误
         CommonCore::shared().setThreadedErrorPath(path);
-
+        // 9. 创建恢复操作对象，负责执行恢复逻辑
         Repair::FactoryRetriever retriever = m_factory.retriever();
+        // 10. 设置备份代理，绑定备份句柄
         Repair::BackupHandleOperator backupOperator(backupHandle.get());
+        // 10.1 绑定共享备份代理
         retriever.setBackupSharedDelegate(&backupOperator);
+        // 10.2 绑定独占备份代理
         retriever.setBackupExclusiveDelegate(&backupOperator);
+        // 11. 设置装配代理，绑定装配句柄
         AssembleHandleOperator assembleOperator(assemblerHandle.get());
+        // 11.1 绑定装配代理
         retriever.setAssembleDelegate(&assembleOperator);
+        // 12. 确保加密句柄为 CipherHandle 类型
         WCTAssert(dynamic_cast<CipherHandle *>(cipherHandle.get()) != nullptr);
-        retriever.setCipherDelegate(static_cast<CipherHandle *>(cipherHandle.get()));
+        // 12.1 设置加密代理，绑定加密句柄
+        retriever.setCipherDelegate(dynamic_cast<CipherHandle *>(cipherHandle.get()));
+        // 13. 设置恢复进度回调，实时反馈恢复进度
         retriever.setProgressCallback(onProgressUpdated);
+        // 14. 执行恢复操作，如果成功则获取恢复评分
         if (retriever.work()) {
+            // 14.1 获取恢复后的评分，反映数据恢复的完整性
             result = retriever.getScore().value();
         }
+        // 15. 记录恢复过程中发生的错误（如果有）
         setThreadedError(retriever.getError()); // retriever may have non-critical error even if it succeeds.
+        // 16. 清空错误路径，结束错误追踪
         CommonCore::shared().setThreadedErrorPath("");
+        // 17. 关闭加密句柄，释放资源
         cipherHandle->close();
     });
     return result;
@@ -913,8 +968,7 @@ void InnerDatabase::checkIntegrity(bool interruptible)
     }
     RecyclableHandle handle = flowOut(HandleType::IntegrityCheck);
     if (handle != nullptr) {
-        IntegerityHandleOperator &integerityOperator
-        = handle.getDecorative()->getOrCreateOperator<IntegerityHandleOperator>(OperatorCheckIntegrity);
+        auto &integerityOperator = handle.getDecorative()->getOrCreateOperator<IntegerityHandleOperator>(OperatorCheckIntegrity);
         if (interruptible) {
             if (checkShouldInterruptWhenClosing(ErrorTypeIntegrity)) {
                 return;

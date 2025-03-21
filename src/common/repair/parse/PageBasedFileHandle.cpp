@@ -31,8 +31,7 @@
 namespace WCDB {
 
 #pragma mark - PageBasedFileHandle
-PageBasedFileHandle::PageBasedFileHandle(const UnsafeStringView& path)
-: FileHandle(path), m_pageSize(0), m_cache(maxAllowedCacheMemory), m_cachePageSize(0)
+PageBasedFileHandle::PageBasedFileHandle(const UnsafeStringView& path) : FileHandle(path), m_pageSize(0), m_cache(maxAllowedCacheMemory), m_cachePageSize(0)
 {
     static_assert(maxAllowedCacheMemory % cacheMemoryPerRange == 0, "");
     static_assert((maxAllowedCacheMemory & maxAllowedCacheMemory - 1) == 0, "");
@@ -67,8 +66,8 @@ MappedData PageBasedFileHandle::mapPage(int pageno,
     WCTAssert(sizeWithinPage <= m_pageSize && sizeWithinPage > 0);
     WCTAssert(m_cachePageSize >= m_pageSize);
 
-    offset_t offset = (pageno - 1) * m_pageSize + offsetWithinPage;
-    offset_t cachePageno = offset / m_cachePageSize;
+    const offset_t offset = static_cast<offset_t>(pageno - 1) * m_pageSize + offsetWithinPage;
+    const offset_t cachePageno = offset / static_cast<offset_t>(m_cachePageSize);
 
     // assert same cache page
     WCTAssert(cachePageno == (offset + sizeWithinPage - 1) / m_cachePageSize);
@@ -85,18 +84,17 @@ MappedData PageBasedFileHandle::mapPage(int pageno,
 
     Range::Length maxLength = cachePagePerRange();
     do {
-        Range range = restrictedRange(cachePageno, maxLength, gap);
+        const Range range = restrictedRange(cachePageno, maxLength, gap);
 
         WCTAssert(gap.contains(range));
         WCTAssert(range.contains(cachePageno));
 
-        bool cuttable = range.length > 1;
-        bool purgeable = !m_cache.empty();
-        bool ignorable = cuttable || purgeable;
+        const bool cuttable = range.length > 1;
+        const bool purgeable = !m_cache.empty();
+        const bool ignorable = cuttable || purgeable;
 
         markErrorAsIgnorable(ignorable);
-        MappedData mappedData
-        = map(range.location * m_cachePageSize, range.length * m_cachePageSize, highWater);
+        MappedData mappedData = map(range.location * m_cachePageSize, range.length * m_cachePageSize, highWater);
         markErrorAsIgnorable(false);
 
         if (!mappedData.empty()) {
@@ -104,7 +102,8 @@ MappedData PageBasedFileHandle::mapPage(int pageno,
             offset_t offsetWithinCache = offset - range.location * m_cachePageSize;
             WCTAssert(offsetWithinCache < range.length * m_cachePageSize);
             return mappedData.subdata(offsetWithinCache, sizeWithinPage);
-        } else if (cuttable) {
+        }
+        if (cuttable) {
             maxLength = (range.length + 1) / 2;
             WCTAssert(maxLength >= 1);
         } else if (purgeable) {
@@ -137,7 +136,7 @@ void PageBasedFileHandle::setPageSize(size_t pageSize)
     WCTAssert(m_cachePageSize == 0);
     m_pageSize = pageSize;
     m_cachePageSize = pageSize;
-    size_t alignment = m_cachePageSize % memoryPageSize();
+    const size_t alignment = m_cachePageSize % memoryPageSize();
     if (alignment > 0) {
         m_cachePageSize = m_cachePageSize - alignment + memoryPageSize();
     }

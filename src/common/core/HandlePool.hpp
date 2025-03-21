@@ -52,19 +52,18 @@ public:
     HandlePool(const HandlePool &) = delete;
     HandlePool &operator=(const HandlePool &) = delete;
 
-    HandlePool(const UnsafeStringView &path);
+    explicit HandlePool(const UnsafeStringView &path);
     const StringView path;
 
-    virtual ~HandlePool() override;
+    ~HandlePool() override;
 
 #pragma mark - Concurrency
-public:
     void blockade();
     bool isBlockaded() const;
     void unblockade();
 
-    typedef std::function<void(void)> DrainedCallback;
-    void drain(const HandlePool::DrainedCallback &onDrained);
+    typedef std::function<void()> DrainedCallback;
+    void drain(const DrainedCallback &onDrained);
 
 protected:
     virtual void didDrain();

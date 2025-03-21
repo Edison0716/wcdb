@@ -52,7 +52,7 @@ void IntegerityHandleOperator::checkIntegrity()
     if (optionalIntegrityMessages.succeed()) {
         auto& integrityMessages = optionalIntegrityMessages.value();
         WCTAssert(integrityMessages.size() == 1);
-        if (integrityMessages.size() > 0) {
+        if (!integrityMessages.empty()) {
             auto integrityMessage = *integrityMessages.begin();
             if (!integrityMessage.caseInsensitiveEqual("ok")) {
                 Error error(Error::Code::Corrupt, Error::Level::Warning, integrityMessage);
@@ -66,8 +66,7 @@ void IntegerityHandleOperator::checkIntegrity()
     if (!needCheckFTS) {
         return;
     }
-    Optional<StringViewSet> ftsTableSet
-    = handle->getValues(m_statementForGetFTSTable, 0);
+    Optional<StringViewSet> ftsTableSet = handle->getValues(m_statementForGetFTSTable, 0);
     if (!ftsTableSet.succeed()) {
         return;
     }

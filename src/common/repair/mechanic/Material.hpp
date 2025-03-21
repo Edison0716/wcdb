@@ -89,7 +89,7 @@ public:
         uint32_t seqTableRootPage;
 #pragma mark - Serializable
     public:
-        bool serialize(Serialization &serialization) const override final;
+        bool serialize(Serialization &serialization) const final;
 #pragma mark - Deserializable
     public:
         bool deserialize(Deserialization &deserialization) override final;

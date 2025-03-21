@@ -137,7 +137,7 @@ void WCDBDatabaseConfigCipher(CPPDatabase database,
         cppDatabase->setConfig(
         WCDB::CipherConfigName,
         std::static_pointer_cast<WCDB::Config>(std::make_shared<WCDB::CipherConfig>(
-        WCDB::UnsafeData::immutable(cipherKey, (size_t) keyLength), pageSize, cipherVersion)),
+        WCDB::UnsafeData::immutable(cipherKey, static_cast<size_t>(keyLength)), pageSize, cipherVersion)),
         WCDB::Configs::Priority::Highest);
     } else {
         cppDatabase->removeConfig(WCDB::CipherConfigName);

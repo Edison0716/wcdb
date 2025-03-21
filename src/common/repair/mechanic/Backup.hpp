@@ -96,13 +96,13 @@ protected:
 
 #pragma mark - Backup
 public:
-    bool work(SharedIncrementalMaterial material);
+    bool work(const SharedIncrementalMaterial& material);
 
     const Material &getMaterial() const;
     SharedIncrementalMaterial getIncrementalMaterial();
 
 protected:
-    Optional<bool> tryLoadLatestMaterial(SharedIncrementalMaterial incrementalMaterial);
+    Optional<bool> tryLoadLatestMaterial(const SharedIncrementalMaterial& incrementalMaterial);
     bool fullBackup();
     bool incrementalBackup();
     bool loadWal();

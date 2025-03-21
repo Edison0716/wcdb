@@ -67,8 +67,7 @@ void BackupDelegateHolder::setBackupExclusiveDelegate(BackupExclusiveDelegate *d
 
 bool BackupDelegateHolder::isDelegateValid() const
 {
-    return m_sharedDelegate != nullptr && m_exclusiveDelegate != nullptr
-           && (uintptr_t) m_sharedDelegate != (uintptr_t) m_exclusiveDelegate;
+    return m_sharedDelegate != nullptr && m_exclusiveDelegate != nullptr && reinterpret_cast<uintptr_t>(m_sharedDelegate) != reinterpret_cast<uintptr_t>(m_exclusiveDelegate);
 }
 
 #pragma mark - Initialize
@@ -87,11 +86,11 @@ Backup::Backup(const UnsafeStringView &path)
 Backup::~Backup() = default;
 
 #pragma mark - Backup
-bool Backup::work(SharedIncrementalMaterial incrementalMaterial)
+bool Backup::work(const SharedIncrementalMaterial& material)
 {
     WCTRemedialAssert(isDelegateValid(), "Read/Write locker is not avaiable.", return false;);
 
-    auto materialLoad = tryLoadLatestMaterial(incrementalMaterial);
+    auto materialLoad = tryLoadLatestMaterial(material);
     if (!materialLoad.hasValue()) {
         return false;
     }
@@ -99,16 +98,14 @@ bool Backup::work(SharedIncrementalMaterial incrementalMaterial)
         if (!fullBackup()) {
             return false;
         }
-        if (incrementalMaterial != nullptr) {
+        if (material != nullptr) {
             //Avoid to be changed during the backup
-            m_incrementalMaterial
-            = std::make_shared<IncrementalMaterial>(*incrementalMaterial);
+            m_incrementalMaterial = std::make_shared<IncrementalMaterial>(*material);
         }
     } else {
-        if (incrementalMaterial != nullptr) {
+        if (material != nullptr) {
             //Avoid to be changed during the backup
-            m_incrementalMaterial
-            = std::make_shared<IncrementalMaterial>(*incrementalMaterial);
+            m_incrementalMaterial = std::make_shared<IncrementalMaterial>(*material);
         }
         if (!incrementalBackup()) {
             return false;
@@ -120,7 +117,7 @@ bool Backup::work(SharedIncrementalMaterial incrementalMaterial)
     return true;
 }
 
-Optional<bool> Backup::tryLoadLatestMaterial(SharedIncrementalMaterial incrementalMaterial)
+Optional<bool> Backup::tryLoadLatestMaterial(const SharedIncrementalMaterial& incrementalMaterial)
 {
     if (incrementalMaterial == nullptr
         || incrementalMaterial->info.incrementalBackupTimes >= BackupMaxIncrementalTimes) {
@@ -170,35 +167,31 @@ bool Backup::fullBackup()
     bool exclusive = false;
     bool succeed = false;
     do {
-        //acquire write lock to avoid shm changed during initialize
+        // acquire write lock to avoid shm changed during initialize
         if (!m_exclusiveDelegate->acquireBackupExclusiveLock()) {
             setError(m_exclusiveDelegate->getBackupError());
             break;
         }
         exclusive = true;
-
         if (m_cipherDelegate->isCipherDB()) {
-            size_t pageSize = m_cipherDelegate->getCipherPageSize();
+            const size_t pageSize = m_cipherDelegate->getCipherPageSize();
             if (pageSize == 0) {
                 setError(m_cipherDelegate->getCipherError());
                 break;
             }
             void *pCodec = m_cipherDelegate->getCipherContext();
             m_pager.setCipherContext(pCodec);
-            m_pager.setPageSize((int) pageSize);
+            m_pager.setPageSize(static_cast<int>(pageSize));
         }
-
         if (!m_pager.initialize()) {
             setError(m_pager.getError());
             break;
         }
-
         if (!m_exclusiveDelegate->releaseBackupExclusiveLock()) {
             setError(m_exclusiveDelegate->getBackupError());
             break;
         }
         exclusive = false;
-
         m_material.setCipherDelegate(m_cipherDelegate);
         succeed = m_masterCrawler.work(this);
         if (!succeed) {
@@ -208,26 +201,24 @@ bool Backup::fullBackup()
             m_material.info.seqTableRootPage = 0;
         }
     } while (false);
-
     if (exclusive && !m_exclusiveDelegate->releaseBackupExclusiveLock() && succeed) {
         setError(m_exclusiveDelegate->getBackupError());
         succeed = false;
     }
-
     return succeed;
 }
 
 bool Backup::incrementalBackup()
 {
     if (m_cipherDelegate->isCipherDB()) {
-        size_t pageSize = m_cipherDelegate->getCipherPageSize();
+        const size_t pageSize = m_cipherDelegate->getCipherPageSize();
         if (pageSize == 0) {
             setError(m_cipherDelegate->getCipherError());
             return false;
         }
         void *pCodec = m_cipherDelegate->getCipherContext();
         m_pager.setCipherContext(pCodec);
-        m_pager.setPageSize((int) pageSize);
+        m_pager.setPageSize(static_cast<int>(pageSize));
     }
     m_pager.setWalSkipped();
     if (!m_pager.initialize()) {
@@ -235,9 +226,8 @@ bool Backup::incrementalBackup()
         return false;
     }
     m_verifyingPagenos = &m_incrementalMaterial->pages;
-    int schemaCookie = m_pager.getSchemaCookie();
-    if (schemaCookie != m_incrementalMaterial->info.lastSchemaCookie
-        || m_material.info.seqTableRootPage == Material::UnknownPageNo) {
+    const int schemaCookie = m_pager.getSchemaCookie();
+    if (schemaCookie != m_incrementalMaterial->info.lastSchemaCookie || m_material.info.seqTableRootPage == Material::UnknownPageNo) {
         if (!loadWal()) {
             setError(m_pager.getError());
             return false;
@@ -250,19 +240,17 @@ bool Backup::incrementalBackup()
             m_material.info.seqTableRootPage = 0;
         }
         m_pager.disposeWal();
-        for (auto iter = m_material.contentsList.begin();
-             iter != m_material.contentsList.end();) {
+        for (auto iter = m_material.contentsList.begin(); iter != m_material.contentsList.end();) {
             auto &content = *iter;
             if (content.checked) {
-                iter++;
+                ++iter;
             } else {
                 // Deleted table
                 m_material.contentsMap.erase(content.tableName);
                 iter = m_material.contentsList.erase(iter);
             }
         }
-    } else if (m_material.info.seqTableRootPage != 0
-               && m_material.info.seqTableRootPage != Material::UnknownPageNo) {
+    } else if (m_material.info.seqTableRootPage != 0 && m_material.info.seqTableRootPage != Material::UnknownPageNo) {
         SequenceCrawler crawler;
         crawler.setAssociatedPager(&m_pager);
         if (!crawler.work(m_material.info.seqTableRootPage, this)) {
@@ -271,7 +259,7 @@ bool Backup::incrementalBackup()
         }
     }
 
-    if (m_verifyingPagenos->size() == 0) {
+    if (m_verifyingPagenos->empty()) {
         return true;
     }
 
@@ -291,18 +279,18 @@ bool Backup::incrementalBackup()
                 m_unchangedLeaves[page->number - 1] = true;
                 m_unchangedLeavesCount++;
             }
-            page++;
+            ++page;
         }
     }
     for (auto iter = m_verifyingPagenos->begin(); iter != m_verifyingPagenos->end();) {
-        auto &page = iter->second;
+        const auto &page = iter->second;
         if (page.type != Page::Type::LeafTable && page.type != Page::Type::InteriorTable) {
             iter = m_verifyingPagenos->erase(iter);
         } else {
-            iter++;
+            ++iter;
         }
     }
-    if (m_verifyingPagenos->size() == 0) {
+    if (m_verifyingPagenos->empty()) {
         return true;
     }
     for (auto iter = contentList.begin(); iter != contentList.end();) {
@@ -311,26 +299,22 @@ bool Backup::incrementalBackup()
             setError(m_pager.getError());
             return false;
         }
-        for (auto pageIter = iter->verifiedPagenos.begin();
-             pageIter != iter->verifiedPagenos.end();
-             pageIter++) {
-            if (pageIter->number > 0 && m_unchangedLeaves[pageIter->number - 1]) {
+        for (auto & verifiedPageno : iter->verifiedPagenos) {
+            if (verifiedPageno.number > 0 && m_unchangedLeaves[verifiedPageno.number - 1]) {
                 // Deleted page
-                pageIter->number = 0;
+                verifiedPageno.number = 0;
             }
         }
-        if (m_verifiedPagenos.size() > 0) {
-            iter->verifiedPagenos.insert(iter->verifiedPagenos.end(),
-                                         m_verifiedPagenos.begin(),
-                                         m_verifiedPagenos.end());
+        if (!m_verifiedPagenos.empty()) {
+            iter->verifiedPagenos.insert(iter->verifiedPagenos.end(),m_verifiedPagenos.begin(),m_verifiedPagenos.end());
             m_verifiedPagenos.clear();
             auto preIter = iter;
-            iter++;
+            ++iter;
             contentList.splice(contentList.begin(), contentList, preIter);
         } else {
-            iter++;
+            ++iter;
         }
-        if (m_verifyingPagenos->size() == 0) {
+        if (m_verifyingPagenos->empty()) {
             return true;
         }
     }

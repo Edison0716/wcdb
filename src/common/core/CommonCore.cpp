@@ -48,7 +48,7 @@ namespace WCDB {
 #pragma mark - Core
 CommonCore& CommonCore::shared()
 {
-    static CommonCore* s_core = new CommonCore;
+    static auto* s_core = new CommonCore;
     return *s_core;
 }
 
@@ -318,39 +318,66 @@ bool CommonCore::isFileObservedCorrupted(const UnsafeStringView& path)
 void CommonCore::setNotificationWhenDatabaseCorrupted(const UnsafeStringView& path,
                                                       const CorruptedNotification& notification)
 {
+    // Initialize the underlying notification callback to null.
     OperationQueue::CorruptionNotification underlyingNotification = nullptr;
+
+    // Check if the user provided a valid notification callback.
     if (notification != nullptr) {
-        underlyingNotification
-        = [this, notification](const UnsafeStringView& path, uint32_t corruptedIdentifier) {
-              RecyclableDatabase database = m_databasePool.getOrCreate(path);
-              if (database == nullptr) {
-                  return;
-              }
-              database->blockade();
-              do {
-                  auto exists = FileManager::fileExists(path);
-                  if (!exists.succeed()) {
-                      // I/O error
-                      break;
-                  }
-                  if (!exists.value()) {
-                      // it's already not existing
-                      break;
-                  }
-                  auto identifier = FileManager::getFileIdentifier(path);
-                  if (!identifier.succeed()) {
-                      // I/O error
-                      break;
-                  }
-                  if (identifier.value() != corruptedIdentifier) {
-                      // file is changed.
-                      break;
-                  }
-                  notification(database.get());
-              } while (false);
-              database->unblockade();
-          };
+        // Create an underlying notification callback that captures 'this' and the provided 'notification'.
+        underlyingNotification = [this, notification](const UnsafeStringView& path, uint32_t corruptedIdentifier) {
+            // Retrieve or create the database object corresponding to the given path.
+            RecyclableDatabase database = m_databasePool.getOrCreate(path);
+
+            // If the database object is invalid, exit the callback.
+            if (database == nullptr) {
+                return;
+            }
+
+            // Block the database to prevent concurrent operations during the notification process.
+            database->blockade();
+
+            do {
+                // Check if the database file exists.
+                auto exists = FileManager::fileExists(path);
+
+                // If the existence check fails (e.g., due to an I/O error), exit the loop.
+                if (!exists.succeed()) {
+                    // I/O error encountered during file existence check.
+                    break;
+                }
+
+                // If the file does not exist, exit the loop.
+                if (!exists.value()) {
+                    // Database file no longer exists.
+                    break;
+                }
+
+                // Retrieve the unique identifier of the database file.
+                auto identifier = FileManager::getFileIdentifier(path);
+
+                // If retrieving the identifier fails (e.g., due to an I/O error), exit the loop.
+                if (!identifier.succeed()) {
+                    // I/O error encountered during file identifier retrieval.
+                    break;
+                }
+
+                // If the file's identifier does not match the corrupted identifier, it indicates the file has been modified.
+                if (identifier.value() != corruptedIdentifier) {
+                    // File has been changed since the corruption was detected.
+                    break;
+                }
+
+                // Trigger the user-provided notification callback to inform about the database corruption.
+                notification(database.get());
+
+            } while (false);
+
+            // Unblock the database to allow further operations.
+            database->unblockade();
+        };
     }
+
+    // Register the underlying notification callback with the operation queue to monitor database corruption events.
     m_operationQueue->setNotificationWhenCorrupted(path, underlyingNotification);
 }
 

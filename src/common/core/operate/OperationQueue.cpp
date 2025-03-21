@@ -94,39 +94,41 @@ void OperationQueue::stop()
 
 void OperationQueue::main()
 {
-    m_timedQueue.loop(std::bind(
-    &OperationQueue::onTimed, this, std::placeholders::_1, std::placeholders::_2));
+    m_timedQueue.loop(std::bind(&OperationQueue::onTimed, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 void OperationQueue::handleError(const Error& error)
 {
+    // 如果错误级别低于警告，或者错误不是数据库损坏，或者系统正在退出，则不处理
     if (error.level < Error::Level::Warning || !error.isCorruption() || isExiting()) {
         return;
     }
 
+    // 从错误信息中获取数据库路径
     const auto& infos = error.infos;
-
     auto iter = infos.find(UnsafeStringView(ErrorStringKeyPath));
     if (iter == infos.end() || iter->second.getType() != Value::Type::Text) {
-        // make sure no empty path will be added into queue
-        return;
+        return; // 没有路径信息，直接返回
     }
 
     const UnsafeStringView& path = iter->second.textValue();
     if (path.empty()) {
-        return;
+        return; // 路径为空，直接返回
     }
 
+    // 如果该路径已经被标记为跳过完整性检查，则返回
     if (path.compare(m_skipIntegrityCheckPath.getOrCreate()) == 0) {
         return;
     }
 
+    // 获取数据库文件的唯一标识符
     auto optionalIdentifier = FileManager::getFileIdentifier(path);
     if (!optionalIdentifier.succeed()) {
-        return;
+        return; // 如果无法获取文件标识符，直接返回
     }
     uint32_t identifier = optionalIdentifier.value();
 
+    // 判断错误是否来源于完整性检查
     bool fromIntegrity = false;
     auto actionIter = infos.find(UnsafeStringView(ErrorStringKeyType));
     if (actionIter != infos.end() && actionIter->second.textValue() == ErrorTypeIntegrity) {
@@ -134,16 +136,14 @@ void OperationQueue::handleError(const Error& error)
     }
 
     if (fromIntegrity) {
+        // 锁定 m_lock 以防止多线程竞争
         LockGuard lockGuard(m_lock);
         bool emplaced = m_corrupteds.emplace(identifier).second;
-        if (emplaced
-            && m_corruptionNotifications.find(path) != m_corruptionNotifications.end()) {
+        if (emplaced && m_corruptionNotifications.find(path) != m_corruptionNotifications.end()) {
             asyncNotifyCorruption(path, identifier);
         }
     } else {
-        // check integrity to
-        // 1. find out the real corrupted database for multi-schemas
-        // 2. avoid wrongly report by backup
+        // 不是完整性检查导致的错误，执行 `asyncCheckIntegrity` 进一步验证
         asyncCheckIntegrity(path, identifier);
     }
 }
