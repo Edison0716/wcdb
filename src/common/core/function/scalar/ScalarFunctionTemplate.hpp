@@ -31,8 +31,7 @@ class ScalarFunctionTemplate {
 public:
     static_assert(std::is_base_of<AbstractScalarFunctionObject, ScalarFunctionObject>::value, "");
 
-    static ScalarFunctionModule
-    specialize(int parameterNum, bool deterministic = true, void* userContext = nullptr)
+    static ScalarFunctionModule specialize(int parameterNum, bool deterministic = true, void* userContext = nullptr)
     {
         return ScalarFunctionModule(run, parameterNum, deterministic, userContext);
     }

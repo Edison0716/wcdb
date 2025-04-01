@@ -36,7 +36,7 @@ public:
     virtual void process(ScalarFunctionAPI& apiObj) override final;
 
 private:
-    void transferValue(ColumnType type, ScalarFunctionAPI& apiObj);
+    static void transferValue(ColumnType type, ScalarFunctionAPI& apiObj);
 };
 
 } // namespace WCDB

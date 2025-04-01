@@ -199,9 +199,9 @@ bool Page::doInitialize()
     }
     m_deserialization.seek(getOffsetOfHeader());
     WCTAssert(m_deserialization.canAdvance(1));
-    int type = m_deserialization.advance1ByteInt();
+    const int type = m_deserialization.advance1ByteInt();
     m_type = convertToPageType(type);
-    if (m_type == Type::Unknown) {
+    if (m_type == Unknown) {
         return true;
     }
     WCTAssert(m_deserialization.canAdvance(4));
@@ -222,11 +222,11 @@ bool Page::doInitialize()
         int cellPointer = m_deserialization.get2BytesInt(offset);
         m_cellPointers.push_back(cellPointer);
     }
-    if (m_type == Type::InteriorTable || m_type == Type::InteriorIndex) {
-        int numberOfSubpage = (int) m_cellPointers.size() + hasRightMostPageNo();
+    if (m_type == InteriorTable || m_type == InteriorIndex) {
+        const int numberOfSubpage = static_cast<int>(m_cellPointers.size()) + hasRightMostPageNo();
         m_subpagenos.reserve(numberOfSubpage);
         for (int i = 0; i < numberOfSubpage; ++i) {
-            int offset = i < m_cellPointers.size() || !hasRightMostPageNo() ?
+            const int offset = i < m_cellPointers.size() || !hasRightMostPageNo() ?
                          m_cellPointers[i] :
                          8 + getOffsetOfHeader();
             if (!m_deserialization.isEnough(offset + 4)) {

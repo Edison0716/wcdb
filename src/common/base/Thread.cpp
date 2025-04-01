@@ -139,17 +139,16 @@ void Thread::setName(const UnsafeStringView& name)
 {
 #ifndef _WIN32
     WCTAssert(name.length() <= 16) // Thread name is limited to 16 bytes in linus;
-    char buffer[maxLengthOfAllowedThreadName()];
-    memset(buffer, 0, maxLengthOfAllowedThreadName());
+    char buffer[maxLengthOfAllowedThreadName()]= {};
     memcpy(buffer, name.data(), name.length());
-    int ret = pthread_setname_np(buffer);
+    const int ret = pthread_setname_np(buffer);
     if (ret != 0) {
         Error error;
         error.level = Error::Level::Warning;
         error.setSystemCode(ret, Error::Code::Error);
         error.infos.insert_or_assign("Operation", "setThreadName");
         Notifier::shared().notify(error);
-        SharedThreadedErrorProne::setThreadedError(std::move(error));
+        setThreadedError(std::move(error));
     }
 #else
     // See also: http://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx

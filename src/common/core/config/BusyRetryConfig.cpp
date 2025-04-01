@@ -58,8 +58,7 @@ BusyRetryConfig::~BusyRetryConfig()
 
 bool BusyRetryConfig::invoke(InnerHandle* handle)
 {
-    handle->setNotificationWhenBusy(std::bind(
-    &BusyRetryConfig::onBusy, this, std::placeholders::_1, std::placeholders::_2));
+    handle->setNotificationWhenBusy(std::bind(&BusyRetryConfig::onBusy, this, std::placeholders::_1, std::placeholders::_2));
     return true;
 }
 
@@ -281,15 +280,13 @@ bool BusyRetryConfig::State::localShouldWait(const Expecting& expecting) const
 bool BusyRetryConfig::State::wait(Trying& trying)
 {
     static_assert(Exclusivity::Must < Exclusivity::NoMatter, "");
-
-    double timeOut = m_busyMonitor != nullptr && m_timeOut > 0 ? m_timeOut : BusyRetryTimeOut;
+    const double timeOut = m_busyMonitor != nullptr && m_timeOut > 0 ? m_timeOut : BusyRetryTimeOut;
     int timeOutTimes = 0;
     std::unique_lock<std::mutex> lockGuard(m_lock);
     while (shouldWait(trying)) {
         Thread currentThread = Thread::current();
         // main thread first
-        Exclusivity exclusivity
-        = Thread::isMain() ? Exclusivity::Must : Exclusivity::NoMatter;
+        Exclusivity exclusivity = Thread::isMain() ? Exclusivity::Must : Exclusivity::NoMatter;
 
         m_waitings.insert(currentThread, trying, exclusivity);
 
@@ -308,15 +305,13 @@ bool BusyRetryConfig::State::wait(Trying& trying)
         if (!notified) {
             if (m_busyMonitor != nullptr) {
                 if (!trying.satisfied(m_pagerType)) {
-                    WCTAssert(m_pagerChangeTid != 0
-                              && m_pagerChangeTid != Thread::getCurrentThreadId());
+                    WCTAssert(m_pagerChangeTid != 0 && m_pagerChangeTid != Thread::getCurrentThreadId());
                     m_busyMonitor(m_path, m_pagerChangeTid);
                     timeOutTimes++;
                 } else {
                     for (const auto& iter : m_shmMasks) {
                         if (!trying.satisfied(iter.second.shared, iter.second.exclusive)) {
-                            WCTAssert(iter.second.tid != 0
-                                      && iter.second.tid != Thread::getCurrentThreadId());
+                            WCTAssert(iter.second.tid != 0 && iter.second.tid != Thread::getCurrentThreadId());
                             m_busyMonitor(m_path, iter.second.tid);
                             timeOutTimes++;
                             break;

@@ -341,9 +341,9 @@ void HandleNotification::postCheckpointFinishNotification(AbstractHandle *handle
 }
 
 #pragma mark - Busy
-int HandleNotification::onBusy(void *p, int numberOfTimes)
+int HandleNotification::onBusy(void *p, const int numberOfTimes)
 {
-    HandleNotification *notification = reinterpret_cast<HandleNotification *>(p);
+    const auto *notification = static_cast<HandleNotification *>(p);
     int rc = SQLITE_OK;
     if (notification->postBusyNotification(numberOfTimes)) {
         // return any non-zero value to retry
@@ -356,13 +356,13 @@ void HandleNotification::setNotificationWhenBusy(const BusyNotification &busyNot
 {
     m_busyNotification = busyNotification;
     if (m_busyNotification != nullptr) {
-        APIExit(sqlite3_busy_handler(getRawHandle(), HandleNotification::onBusy, this));
+        APIExit(sqlite3_busy_handler(getRawHandle(), onBusy, this));
     } else {
         APIExit(sqlite3_busy_handler(getRawHandle(), nullptr, nullptr));
     }
 }
 
-bool HandleNotification::postBusyNotification(int numberOfTimes)
+bool HandleNotification::postBusyNotification(const int numberOfTimes) const
 {
     WCTAssert(m_busyNotification != nullptr);
     bool retry = false;

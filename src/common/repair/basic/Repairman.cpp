@@ -70,7 +70,7 @@ bool Repairman::exit()
     return false;
 }
 
-bool Repairman::exit(bool result)
+bool Repairman::exit(const bool result)
 {
     if (result) {
         return finishProgress();

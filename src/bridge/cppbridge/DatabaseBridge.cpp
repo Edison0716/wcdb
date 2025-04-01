@@ -170,10 +170,8 @@ void WCDBDatabaseConfig(CPPDatabase database,
     if (unInvocation != nullptr) {
         assert(unInvocationContext != nullptr);
         WCDB::RecyclableContext recyclableUnInvocationContext(unInvocationContext, destructor);
-        cppUninvocation
-        = [unInvocation, recyclableUnInvocationContext](WCDB::InnerHandle* handle) -> bool {
-            return unInvocation(recyclableUnInvocationContext.get(),
-                                WCDBCreateUnmanagedCPPObject(CPPHandle, handle));
+        cppUninvocation= [unInvocation, recyclableUnInvocationContext](WCDB::InnerHandle* handle) -> bool {
+            return unInvocation(recyclableUnInvocationContext.get(),WCDBCreateUnmanagedCPPObject(CPPHandle, handle));
         };
     }
     cppDatabase->setConfig(
@@ -680,8 +678,8 @@ bool WCDBDatabaseRegisterDict(const unsigned char* _Nullable dict, long dictSize
 void WCDBDatabaseSetZSTDNormalCompress(void* _Nonnull context, CPPColumn column)
 {
     WCDBGetObjectOrReturn(column, WCDB::Column, cppColumn);
-    WCDB::CompressionColumnInfo columnInfo(*cppColumn, WCDB::CompressionType::Normal);
-    WCDB::CompressionTableUserInfo* userInfo = (WCDB::CompressionTableUserInfo*) context;
+    const WCDB::CompressionColumnInfo columnInfo(*cppColumn, WCDB::CompressionType::Normal);
+    const auto userInfo = static_cast<WCDB::CompressionTableUserInfo*>(context);
     userInfo->addCompressingColumn(columnInfo);
 }
 
@@ -690,7 +688,7 @@ void WCDBDatabaseSetZSTDDictCompress(void* _Nonnull context, CPPColumn column, u
     WCDBGetObjectOrReturn(column, WCDB::Column, cppColumn);
     WCDB::CompressionColumnInfo columnInfo(*cppColumn, WCDB::CompressionType::Dict);
     columnInfo.setCommonDict(dictid);
-    WCDB::CompressionTableUserInfo* userInfo = (WCDB::CompressionTableUserInfo*) context;
+    const auto userInfo = static_cast<WCDB::CompressionTableUserInfo*>(context);
     userInfo->addCompressingColumn(columnInfo);
 }
 

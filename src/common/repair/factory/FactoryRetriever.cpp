@@ -78,13 +78,13 @@ bool FactoryRetriever::work()
         setCriticalErrorWithSharedThreadedError();
         return exit(false);
     }
-    std::list<StringView> &workshopDirectories = optionalWorkshopDirectories.value();
+    const std::list<StringView> &workshopDirectories = optionalWorkshopDirectories.value();
 
     if (!calculateSizes(workshopDirectories)) {
         return exit(false);
     }
 
-    SteadyClock before = SteadyClock::now();
+    const SteadyClock before = SteadyClock::now();
     //2. Restore from current db. It must be succeed without even non-critical errors.
     if (!restore(factory.database) || getErrorSeverity() >= Severity::Normal) {
         return exit(false);
@@ -135,7 +135,7 @@ bool FactoryRetriever::work()
         setCriticalError(depositor.getError());
         return exit(false);
     }
-    StringView baseDirectory = Path::getDirectory(factory.database);
+    const StringView baseDirectory = Path::getDirectory(factory.database);
     succeed = FileManager::moveItems(
     Factory::associatedPathsForDatabase(database), baseDirectory);
     if (!succeed) {
@@ -146,7 +146,7 @@ bool FactoryRetriever::work()
     //6. Remove all deposited dbs if error is ignorable.
     if (getErrorSeverity() <= UpgradeableErrorProne::Severity::Normal) {
         const StringView tempDir = FileManager::getTemporaryDirectory();
-        if (tempDir.length() > 0) {
+        if (!tempDir.empty()) {
             FileManager::moveItems({ factory.directory }, tempDir);
         } else {
             FileManager::removeItem(factory.directory);

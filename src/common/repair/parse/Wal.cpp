@@ -23,6 +23,7 @@
  */
 
 #include "Wal.hpp"
+
 #include "Assertion.hpp"
 #include "CoreConst.h"
 #include "FileManager.hpp"
@@ -30,7 +31,6 @@
 #include "Notifier.hpp"
 #include "Pager.hpp"
 #include "Path.hpp"
-#include "SQLite.h"
 #include "Serialization.hpp"
 #include "StringView.hpp"
 
@@ -59,16 +59,13 @@ const StringView &Wal::getPath() const
     return m_fileHandle.path;
 }
 
-MappedData Wal::acquireData(offset_t offset, size_t size, SharedHighWater highWater)
+MappedData Wal::acquireData(const offset_t offset, const size_t size, SharedHighWater highWater)
 {
     WCTAssert(m_fileHandle.isOpened());
-    MappedData data = m_fileHandle.map(offset, size, highWater);
+    MappedData data = m_fileHandle.map(offset, size, std::move(highWater));
     if (data.size() != size) {
-        if (data.size() > 0) {
-            markAsCorrupted((int) ((offset - headerSize) / getFrameSize() + 1),
-                            StringView::formatted("Acquired wal data with size: %d is less than the expected size: %d.",
-                                                  data.size(),
-                                                  size));
+        if (!data.empty()) {
+            markAsCorrupted(static_cast<int>((offset - headerSize) / getFrameSize() + 1),StringView::formatted("Acquired wal data with size: %d is less than the expected size: %d.", data.size(), size));
         } else {
             assignWithSharedThreadedError();
         }
@@ -83,20 +80,17 @@ bool Wal::containsPage(int pageno) const
     return m_pages2Frames.find(pageno) != m_pages2Frames.end();
 }
 
-MappedData Wal::acquirePageData(int pageno, SharedHighWater highWater)
+MappedData Wal::acquirePageData(int pageno, const SharedHighWater &highWater)
 {
     return acquirePageData(pageno, 0, getPageSize(), highWater);
 }
 
-MappedData Wal::acquirePageData(int pageno, offset_t offset, size_t size, SharedHighWater highWater)
+MappedData Wal::acquirePageData(int pageno, const offset_t offset, const size_t size, const SharedHighWater &highWater)
 {
     WCTAssert(isInitialized());
     WCTAssert(containsPage(pageno));
     WCTAssert(offset + size <= getPageSize());
-    return acquireData(headerSize + getFrameSize() * (m_pages2Frames[pageno] - 1)
-                       + Frame::headerSize + offset,
-                       size,
-                       highWater);
+    return acquireData(headerSize + getFrameSize() * (m_pages2Frames[pageno] - 1) + Frame::headerSize + offset, size, highWater);
 }
 
 int Wal::getMaxPageno() const
@@ -113,7 +107,7 @@ bool Wal::isCheckpointIncreasedSalt(const Salt &before, const Salt &after)
     return before.first + 1 == after.first && before.second != after.second;
 }
 
-void Wal::setShmLegality(bool flag)
+void Wal::setShmLegality(const bool flag)
 {
     WCTAssert(!isInitialized());
     m_shmLegality = flag;
@@ -144,7 +138,7 @@ int Wal::getMaxFrame() const
 
 int Wal::getNumberOfFrames() const
 {
-    return (int) m_pages2Frames.size();
+    return static_cast<int>(m_pages2Frames.size());
 }
 
 int Wal::getPageSize() const
@@ -218,10 +212,7 @@ bool Wal::doInitialize()
         if (!m_shm.initialize()) {
             return false;
         }
-        WCTAssert(m_nbackfill == 0 || (m_salt == Salt{ 0, 0 })
-                  || (m_nbackfill == m_shm.getBackfill() && m_salt == m_shm.getSalt())
-                  || (m_shm.getBackfill() == 0
-                      && isCheckpointIncreasedSalt(m_salt, m_shm.getSalt())));
+        WCTAssert(m_nbackfill == 0 || (m_salt == Salt{ 0, 0 }) || (m_nbackfill == m_shm.getBackfill() && m_salt == m_shm.getSalt()) || (m_shm.getBackfill() == 0 && isCheckpointIncreasedSalt(m_salt, m_shm.getSalt())));
         m_nbackfill = m_shm.getBackfill();
         m_salt = m_shm.getSalt();
         maxWalFrame = m_shm.getMaxFrame();
@@ -262,14 +253,13 @@ bool Wal::doInitialize()
     WCTAssert(deserialization.canAdvance(4));
     salt.second = deserialization.advance4BytesUInt();
 
-    if (m_salt != Salt{ 0, 0 } && m_salt != salt
-        && !(isCheckpointIncreasedSalt(m_salt, salt) && m_nbackfill > 0)) {
+    if (m_salt != Salt{ 0, 0 } && m_salt != salt&& !(isCheckpointIncreasedSalt(m_salt, salt) && m_nbackfill > 0)) {
         m_nbackfill = 0;
         maxWalFrame = std::numeric_limits<int>::max();
     }
     m_salt = salt;
 
-    const int numberOfFramesInFile = ((int) m_fileSize - headerSize) / getFrameSize();
+    const int numberOfFramesInFile = (static_cast<int>(m_fileSize) - headerSize) / getFrameSize();
     maxWalFrame = std::min(numberOfFramesInFile, maxWalFrame);
 
     if (m_nbackfill >= maxWalFrame) {
@@ -315,7 +305,7 @@ bool Wal::doInitialize()
         checksum = frame.calculateChecksum(checksum);
         if (checksum != frame.getChecksum()) {
             if (m_shmLegality) {
-                //If the frame checksum is mismatched and shm is legal, it mean to be corrupted.
+                // If the frame checksum is mismatched and shm is legal, it means to be corrupted.
                 markAsCorrupted(frameno,
                                 StringView::formatted("Mismatched frame checksum: %u, %u to %u, %u.",
                                                       frame.getChecksum().first,
@@ -323,10 +313,9 @@ bool Wal::doInitialize()
                                                       checksum.first,
                                                       checksum.second));
                 return false;
-            } else {
-                //If the frame checksum is mismatched and shm is not legal, it mean to be disposed.
-                break;
             }
+            //If the frame checksum is mismatched and shm is not legal, it mean to be disposed.
+            break;
         }
         checksum = frame.getChecksum();
         committedRecords[frame.getPageNumber()] = frameno;
@@ -349,7 +338,7 @@ bool Wal::doInitialize()
 }
 
 #pragma mark - Error
-void Wal::markAsCorrupted(int frame, const UnsafeStringView &message)
+void Wal::markAsCorrupted(const int frame, const UnsafeStringView &message)
 {
     Error error(Error::Code::Corrupt, Error::Level::Notice, message);
     error.infos.insert_or_assign(ErrorStringKeySource, ErrorSourceRepair);
@@ -362,7 +351,7 @@ void Wal::markAsCorrupted(int frame, const UnsafeStringView &message)
 #pragma mark - Dispose
 int Wal::getDisposedPages() const
 {
-    return (int) m_disposedPages.size();
+    return static_cast<int>(m_disposedPages.size());
 }
 
 void Wal::dispose()

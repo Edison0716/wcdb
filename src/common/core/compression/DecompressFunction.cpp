@@ -46,24 +46,22 @@ void DecompressFunction::process(ScalarFunctionAPI& apiObj)
                                                     apiObj.getValueCount()));
         return;
     }
-    ColumnType valueType = apiObj.getValueType(0);
-    int type = (int) apiObj.getIntValue(1);
-    CompressedType compressionType = WCDBGetCompressedType(type);
-    if (compressionType <= CompressedType::None || compressionType > CompressedType::ZSTDNormal
-        || valueType != ColumnType::BLOB) {
+    const ColumnType valueType = apiObj.getValueType(0);
+    const int type = static_cast<int>(apiObj.getIntValue(1));
+    const auto compressionType = WCDBGetCompressedType(type);
+    if (compressionType <= CompressedType::None || compressionType > CompressedType::ZSTDNormal || valueType != ColumnType::BLOB) {
         transferValue(valueType, apiObj);
         return;
     }
-    UnsafeData data = apiObj.getBlobValue(0);
+    const UnsafeData data = apiObj.getBlobValue(0);
     if (data.size() == 0) {
         transferValue(valueType, apiObj);
         return;
     }
-    CompressionCenter::shared().decompressContent(
-    data, compressionType == CompressedType::ZSTDDict, WCDBGetOriginType(type), apiObj);
+    CompressionCenter::shared().decompressContent(data, compressionType == CompressedType::ZSTDDict, WCDBGetOriginType(type), apiObj);
 }
 
-void DecompressFunction::transferValue(ColumnType type, ScalarFunctionAPI& apiObj)
+void DecompressFunction::transferValue(const ColumnType type, ScalarFunctionAPI& apiObj)
 {
     switch (type) {
     case Syntax::ColumnType::Integer:

@@ -156,7 +156,7 @@ public:
 
 private:
     static int onBusy(void *p, int numberOfTimes);
-    bool postBusyNotification(int numberOfTimes);
+    bool postBusyNotification(int numberOfTimes) const;
     BusyNotification m_busyNotification;
 
 #pragma mark - Table Modification

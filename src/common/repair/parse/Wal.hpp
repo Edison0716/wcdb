@@ -38,7 +38,7 @@ namespace Repair {
 class Wal final : public PagerRelated, public Initializeable {
 #pragma mark - Initialize
 public:
-    Wal(Pager *pager);
+    explicit Wal(Pager *pager);
     ~Wal() override;
 
     const StringView &getPath() const;
@@ -53,9 +53,10 @@ protected:
 #pragma mark - Page
 public:
     bool containsPage(int pageno) const;
-    MappedData acquirePageData(int pageno, SharedHighWater highWater = nullptr);
+    MappedData acquirePageData(int pageno, const SharedHighWater &highWater = nullptr);
     MappedData
-    acquirePageData(int pageno, offset_t offset, size_t size, SharedHighWater highWater = nullptr);
+    acquirePageData(int pageno, offset_t offset, size_t size,
+                               const SharedHighWater &highWater = nullptr);
     int getMaxPageno() const;
 
 protected:

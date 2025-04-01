@@ -485,7 +485,7 @@ bool Compression::rollbackCompression(Compression::Stepper& stepper)
     return ret;
 }
 
-Optional<bool> Compression::tryAcquireTables(Compression::Stepper& stepper)
+Optional<bool> Compression::tryAcquireTables(Stepper& stepper)
 {
     {
         SharedLockGuard lockGuard(m_lock);
@@ -536,7 +536,7 @@ Optional<bool> Compression::tryAcquireTables(Compression::Stepper& stepper)
     return true;
 }
 
-Optional<bool> Compression::tryCompressRows(Compression::Stepper& stepper)
+Optional<bool> Compression::tryCompressRows(Stepper& stepper)
 {
     const CompressionTableInfo* info = nullptr;
     {

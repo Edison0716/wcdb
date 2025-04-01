@@ -28,7 +28,7 @@ namespace WCDB {
 
 namespace Repair {
 
-Initializeable::Initializeable() : m_state(State::None)
+Initializeable::Initializeable() : m_state(None)
 {
 }
 
@@ -36,26 +36,26 @@ Initializeable::~Initializeable() = default;
 
 bool Initializeable::isInitialized() const
 {
-    return m_state == State::Initialized;
+    return m_state == Initialized;
 }
 
 bool Initializeable::isInitializing() const
 {
-    return m_state == State::Initializing;
+    return m_state == Initializing;
 }
 
 bool Initializeable::isInitializeFalied() const
 {
-    return m_state == State::Failed;
+    return m_state == Failed;
 }
 
 bool Initializeable::initialize()
 {
-    if (m_state == State::None) {
-        m_state = State::Initializing;
-        m_state = doInitialize() ? State::Initialized : State::Failed;
+    if (m_state == None) {
+        m_state = Initializing;
+        m_state = doInitialize() ? Initialized : Failed;
     }
-    return m_state == State::Initialized;
+    return m_state == Initialized;
 }
 
 } //namespace Repair

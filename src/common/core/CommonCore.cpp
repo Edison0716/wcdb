@@ -558,24 +558,21 @@ void CommonCore::setNotificationWhenErrorTraced(const UnsafeStringView& path,
     }
 }
 
-void CommonCore::setBusyMonitor(BusyMonitor monitor, double timeOut)
+void CommonCore::setBusyMonitor(BusyMonitor monitor, const double timeOut)
 {
     if (monitor != nullptr && timeOut > 0) {
         m_enableBusyTrace = true;
-        static_cast<BusyRetryConfig*>(m_globalBusyRetryConfig.get())
-        ->setBusyMonitor(
-        [=](const UnsafeStringView& path, uint64_t tid) {
+        dynamic_cast<BusyRetryConfig*>(m_globalBusyRetryConfig.get())->setBusyMonitor([=](const UnsafeStringView& path, const uint64_t tid) {
             if (m_errorIgnorable.getOrCreate()) {
                 return;
             }
             auto database = getOrCreateDatabase(path);
-            StringView sql = database->getRunningSQLInThread(tid);
+            const StringView sql = database->getRunningSQLInThread(tid);
             monitor(database->getTag(), path, tid, sql);
-        },
-        timeOut);
+        },timeOut);
     } else {
         m_enableBusyTrace = false;
-        static_cast<BusyRetryConfig*>(m_globalBusyRetryConfig.get())->setBusyMonitor(nullptr, 0);
+        dynamic_cast<BusyRetryConfig*>(m_globalBusyRetryConfig.get())->setBusyMonitor(nullptr, 0);
     }
 }
 

@@ -326,7 +326,7 @@ bool Backup::loadWal()
     bool exclusive = false;
     bool succeed = false;
     do {
-        //acquire write lock to avoid shm changed during initialize
+        // acquire write lock to avoid shm changed during initialize
         if (!m_exclusiveDelegate->acquireBackupExclusiveLock()) {
             setError(m_exclusiveDelegate->getBackupError());
             break;
