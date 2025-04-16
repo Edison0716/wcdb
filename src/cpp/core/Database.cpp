@@ -403,7 +403,7 @@ bool Database::isAlreadyCorrupted()
     return CommonCore::shared().isFileObservedCorrupted(getPath());
 }
 
-void Database::enableAutoBackup(bool flag)
+void Database::enableAutoBackup(const bool flag)
 {
     CommonCore::shared().enableAutoBackup(m_innerDatabase, flag);
 }

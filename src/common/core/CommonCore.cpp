@@ -126,12 +126,12 @@ void CommonCore::purgeDatabasePool()
     m_databasePool.purge();
 }
 
-void CommonCore::releaseSQLiteMemory(int bytes)
+void CommonCore::releaseSQLiteMemory(const int bytes)
 {
     sqlite3_release_memory(bytes);
 }
 
-void CommonCore::setSoftHeapLimit(int64_t limit)
+void CommonCore::setSoftHeapLimit(const int64_t limit)
 {
     sqlite3_soft_heap_limit64(limit);
 }
@@ -382,7 +382,7 @@ void CommonCore::setNotificationWhenDatabaseCorrupted(const UnsafeStringView& pa
 }
 
 #pragma mark - Checkpoint
-void CommonCore::enableAutoCheckpoint(InnerDatabase* database, bool enable)
+void CommonCore::enableAutoCheckpoint(InnerDatabase* database, const bool enable)
 {
     if (enable) {
         if (!database->liteModeEnable()) {
@@ -407,12 +407,11 @@ void CommonCore::setCheckPointMinFrames(int frames)
 }
 
 #pragma mark - Backup
-void CommonCore::enableAutoBackup(InnerDatabase* database, bool enable)
+void CommonCore::enableAutoBackup(InnerDatabase* database, const bool enable)
 {
     WCTAssert(database != nullptr);
     if (enable) {
-        database->setConfig(
-        AutoBackupConfigName, m_autoBackupConfig, WCDB::Configs::Priority::Highest);
+        database->setConfig(AutoBackupConfigName, m_autoBackupConfig, Configs::Priority::Highest);
         m_operationQueue->registerAsRequiredBackup(database->getPath());
         database->markNeedLoadIncremetalMaterial();
     } else {

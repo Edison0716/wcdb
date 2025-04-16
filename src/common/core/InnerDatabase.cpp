@@ -236,7 +236,7 @@ void InnerDatabase::setConfigs(const Configs &configs)
 
 void InnerDatabase::setConfig(const UnsafeStringView &name,
                               const std::shared_ptr<Config> &config,
-                              int priority)
+                              const int priority)
 {
     LockGuard memoryGuard(m_memory);
     m_configs.insert(StringView(name), config, priority);
@@ -253,7 +253,7 @@ void InnerDatabase::setFullSQLTraceEnable(bool enable)
     m_fullSQLTrace = enable;
 }
 
-void InnerDatabase::setLiteModeEnable(bool enable)
+void InnerDatabase::setLiteModeEnable(const bool enable)
 {
     if (m_liteModeEnable != enable) {
         close([&] {
@@ -263,15 +263,15 @@ void InnerDatabase::setLiteModeEnable(bool enable)
     }
 }
 
-bool InnerDatabase::liteModeEnable()
+bool InnerDatabase::liteModeEnable() const
 {
     return m_liteModeEnable;
 }
 
 #pragma mark - Handle
-RecyclableHandle InnerDatabase::getHandle(bool writeHint)
+RecyclableHandle InnerDatabase::getHandle(const bool writeHint)
 {
-    HandleType type = HandleType::Normal;
+    constexpr auto type = HandleType::Normal;
     if (m_isInMemory) {
         InitializedGuard initializedGuard = initialize();
         if (m_sharedInMemoryHandle == nullptr) {
@@ -286,7 +286,7 @@ RecyclableHandle InnerDatabase::getHandle(bool writeHint)
         WCTAssert(m_concurrency.readSafety());
         return handle;
     }
-    InitializedGuard initializedGuard = initialize();
+    const InitializedGuard initializedGuard = initialize();
     if (!initializedGuard.valid()) {
         return nullptr;
     }
@@ -299,7 +299,7 @@ RecyclableHandle InnerDatabase::getHandle(bool writeHint)
 
 bool InnerDatabase::execute(const Statement &statement)
 {
-    RecyclableHandle handle = getHandle(statement.isWriteStatement());
+    const RecyclableHandle handle = getHandle(statement.isWriteStatement());
     if (handle != nullptr) {
         if (handle->execute(statement)) {
             return true;
@@ -311,7 +311,7 @@ bool InnerDatabase::execute(const Statement &statement)
 
 bool InnerDatabase::execute(const UnsafeStringView &sql)
 {
-    RecyclableHandle handle = getHandle();
+    const RecyclableHandle handle = getHandle();
     if (handle != nullptr) {
         if (handle->execute(sql)) {
             return true;
@@ -351,7 +351,7 @@ StringView InnerDatabase::getRunningSQLInThread(uint64_t tid) const
     return StringView();
 }
 
-std::shared_ptr<InnerHandle> InnerDatabase::generateSlotedHandle(HandleType type)
+std::shared_ptr<InnerHandle> InnerDatabase::generateSlotedHandle(const HandleType type)
 {
     WCTAssert(m_concurrency.readSafety());
     HandleSlot slot = slotOfHandleType(type);
@@ -388,7 +388,7 @@ bool InnerDatabase::willReuseSlotedHandle(HandleType type, InnerHandle *handle)
     return setupHandle(type, handle);
 }
 
-bool InnerDatabase::setupHandle(HandleType type, InnerHandle *handle)
+bool InnerDatabase::setupHandle(const HandleType type, InnerHandle *handle)
 {
     WCTAssert(handle != nullptr);
 
@@ -397,9 +397,8 @@ bool InnerDatabase::setupHandle(HandleType type, InnerHandle *handle)
     handle->setLiteModeEnable(m_liteModeEnable);
     handle->setFullSQLTraceEnable(m_fullSQLTrace);
     handle->setBusyTraceEnable(CommonCore::shared().isBusyTraceEnable());
-    HandleSlot slot = slotOfHandleType(type);
-    handle->enableWriteMainDB(m_liteModeEnable || slot == HandleSlotAutoTask
-                              || slot == HandleSlotAssemble || slot == HandleSlotVacuum);
+    const HandleSlot slot = slotOfHandleType(type);
+    handle->enableWriteMainDB(m_liteModeEnable || slot == HandleSlotAutoTask || slot == HandleSlotAssemble || slot == HandleSlotVacuum);
     handle->markAsCanBeSuspended(false);
     handle->markErrorAsUnignorable(99); //Clear all ignorable code
 
@@ -407,17 +406,15 @@ bool InnerDatabase::setupHandle(HandleType type, InnerHandle *handle)
     if (slot == HandleSlotNormal || slot == HandleSlotAutoTask) {
         bool hasDecorator = false;
         WCTAssert(dynamic_cast<DecorativeHandle *>(handle) != nullptr);
-        DecorativeHandle *decorativeHandle = static_cast<DecorativeHandle *>(handle);
+        auto *decorativeHandle = dynamic_cast<DecorativeHandle *>(handle);
         // CompressingHandleDecorator must be added before MigratingHandleDecorator.
         if (m_compression.shouldCompress()) {
             hasDecorator = true;
-            decorativeHandle->tryAddDecorator<CompressingHandleDecorator>(
-            DecoratorCompressingHandle, m_compression);
+            decorativeHandle->tryAddDecorator<CompressingHandleDecorator>(DecoratorCompressingHandle, m_compression);
         }
         if (type == HandleType::Normal && m_migration.shouldMigrate()) {
             hasDecorator = true;
-            decorativeHandle->tryAddDecorator<MigratingHandleDecorator>(
-            DecoratorMigratingHandle, m_migration);
+            decorativeHandle->tryAddDecorator<MigratingHandleDecorator>(DecoratorMigratingHandle, m_migration);
         }
         if (!hasDecorator) {
             decorativeHandle->clearDecorators();
@@ -429,7 +426,7 @@ bool InnerDatabase::setupHandle(HandleType type, InnerHandle *handle)
         SharedLockGuard memoryGuard(m_memory);
         configs = m_configs;
     }
-    bool succeed = handle->reconfigure(configs);
+    const bool succeed = handle->reconfigure(configs);
     if (!succeed) {
         setThreadedError(handle->getError());
         return false;
@@ -437,17 +434,17 @@ bool InnerDatabase::setupHandle(HandleType type, InnerHandle *handle)
 
     if (slot != HandleSlotAssemble && slot != HandleSlotVacuum && slot != HandleSlotCipher) {
         handle->setPath(path);
-        bool hasOpened = handle->isOpened();
-        Time start = Time::now();
-        uint64_t cpuStart = Time::currentThreadCPUTimeInMicroseconds();
+        const bool hasOpened = handle->isOpened();
+        const Time start = Time::now();
+        const uint64_t cpuStart = Time::currentThreadCPUTimeInMicroseconds();
+        // 打开数据库 获取句柄。
         if (!handle->open()) {
             setThreadedError(handle->getError());
             return false;
         }
         if (!hasOpened && slot == HandleSlotNormal) {
-            std::time_t openTime
-            = (Time::now().nanoseconds() - start.nanoseconds()) / 1000;
-            uint64_t openCPUTime = Time::currentThreadCPUTimeInMicroseconds() - cpuStart;
+            const std::time_t openTime= (Time::now().nanoseconds() - start.nanoseconds()) / 1000;
+            const uint64_t openCPUTime = Time::currentThreadCPUTimeInMicroseconds() - cpuStart;
             int memoryUsed, tableCount, indexCount, triggerCount;
             if (handle->getSchemaInfo(memoryUsed, tableCount, indexCount, triggerCount)) {
                 StringViewMap<Value> info;
@@ -458,13 +455,12 @@ bool InnerDatabase::setupHandle(HandleType type, InnerHandle *handle)
                 info.insert_or_assign(MonitorInfoKeyIndexCount, indexCount);
                 info.insert_or_assign(MonitorInfoKeyTriggerCount, triggerCount);
                 info.insert_or_assign(MonitorInfoKeyHandleCount, numberOfAliveHandlesInSlot(slot) + 1);
-                DBOperationNotifier::shared().notifyOperation(
-                this, DBOperationNotifier::Operation::OpenHandle, info);
+                DBOperationNotifier::shared().notifyOperation(this, DBOperationNotifier::Operation::OpenHandle, info);
             }
         }
     } else if (slot == HandleSlotCipher) {
         WCTAssert(dynamic_cast<CipherHandle *>(handle) != nullptr);
-        CipherHandle *cipherHandle = static_cast<CipherHandle *>(handle);
+        auto *cipherHandle = dynamic_cast<CipherHandle *>(handle);
         if (!cipherHandle->openCipherInMemory()) {
             setThreadedError(cipherHandle->getCipherError());
             return false;
@@ -473,11 +469,11 @@ bool InnerDatabase::setupHandle(HandleType type, InnerHandle *handle)
         if (salt.failed()) {
             assignWithSharedThreadedError();
             return false;
-        } else if (salt.value().length() > 0) {
+        }
+        if (!salt.value().empty()) {
             cipherHandle->setCipherSalt(salt.value());
         }
     }
-
     return true;
 }
 
@@ -1226,7 +1222,7 @@ bool InnerDatabase::checkpoint(bool interruptible, CheckPointMode mode)
         return false; // mark as succeed if it's not an auto initialize action.
     }
     bool succeed = false;
-    RecyclableHandle handle = flowOut(HandleType::Checkpoint);
+    const RecyclableHandle handle = flowOut(HandleType::Checkpoint);
     if (handle != nullptr) {
         if (interruptible) {
             if (checkShouldInterruptWhenClosing(ErrorTypeCheckpoint)) {

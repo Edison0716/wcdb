@@ -106,7 +106,7 @@ public:
     void removeConfig(const UnsafeStringView &name);
     void setFullSQLTraceEnable(bool enable);
     void setLiteModeEnable(bool enable);
-    bool liteModeEnable();
+    bool liteModeEnable() const;
 
 private:
     Configs m_configs;

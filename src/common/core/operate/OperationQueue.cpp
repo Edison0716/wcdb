@@ -467,7 +467,7 @@ void OperationQueue::registerAsNoBackupRequired(const UnsafeStringView& path)
     m_timedQueue.remove(operation);
 }
 
-void OperationQueue::asyncBackup(const UnsafeStringView& path, bool incremental)
+void OperationQueue::asyncBackup(const UnsafeStringView& path, const bool incremental)
 {
     WCTAssert(!path.empty());
 
@@ -478,12 +478,12 @@ void OperationQueue::asyncBackup(const UnsafeStringView& path, bool incremental)
     }
 }
 
-void OperationQueue::asyncBackup(const UnsafeStringView& path, double delay)
+void OperationQueue::asyncBackup(const UnsafeStringView& path, const double delay)
 {
     WCTAssert(!path.empty());
 
-    Operation operation(Operation::Type::Backup, path);
-    Parameter parameter; // no use
+    const Operation operation(Operation::Type::Backup, path);
+    const Parameter parameter; // no use
     async(operation, delay, parameter);
 }
 

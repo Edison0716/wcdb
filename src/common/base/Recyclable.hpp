@@ -60,7 +60,7 @@ public:
 
     Recyclable(const std::nullptr_t &) : Recyclable() {}
 
-    Recyclable(const T &value, const Recyclable::OnRecycled &onRecycled)
+    Recyclable(const T &value, const OnRecycled &onRecycled)
     : Referenced(), m_value(value), m_onRecycled(onRecycled)
     {
         retain();

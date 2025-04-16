@@ -161,25 +161,37 @@ size_t HandlePool::numberOfAliveHandlesInSlot(const HandleSlot slot) const
     return m_handles[slot].size();
 }
 
-RecyclableHandle HandlePool::flowOut(HandleType type, bool writeHint)
+// 从句柄池中获取一个可复用的数据库连接句柄（InnerHandle），用于数据库操作。
+// type：表示句柄的类型（用途）；writeHint：提示该连接可能用于写操作。
+RecyclableHandle HandlePool::flowOut(HandleType type, const bool writeHint)
 {
+    // 根据连接类型获取对应的槽位（句柄分类）
     const HandleSlot slot = slotOfHandleType(type);
     WCTAssert(slot < HandleSlotCount);
+
+    // 根据连接类型获取连接的类别（读、写、备份等）
     const HandleCategory category = categoryOfHandleType(type);
     WCTAssert(category < HandleCategoryCount);
 
+    // 获取当前线程对应的线程本地句柄引用（若无则创建）
     ReferencedHandle &referencedHandle = m_threadedHandles.getOrCreate().at(category);
+
+    // 检查当前线程是否已有缓存的连接句柄
     {
         // threaded handles is thread safe.
         if (referencedHandle.handle != nullptr) {
             WCTAssert(m_concurrency.readSafety());
             WCTAssert(referencedHandle.reference > 0);
+            // 检查句柄当前是否由此线程使用
             WCTAssert(referencedHandle.handle->isUsingInThread(Thread::getCurrentThreadId()));
+            // 增加引用计数（表示同一个连接被重复使用）
             ++referencedHandle.reference;
+            // 返回一个可回收的句柄，设置回收函数为flowBack
             return RecyclableHandle(referencedHandle.handle,std::bind(&HandlePool::flowBack, this, type, std::placeholders::_1));
         }
     }
 
+    // 若连接数量已达最大限制，则报错并返回nullptr
     if (!m_counter.tryIncreaseHandleCount(type, writeHint)) {
         Error error(Error::Code::Exceed,
                     Error::Level::Error,
@@ -191,40 +203,50 @@ RecyclableHandle HandlePool::flowOut(HandleType type, bool writeHint)
         return nullptr;
     }
 
+    // 获取共享锁，确保并发安全（允许多个线程读）
     SharedLockGuard concurrencyGuard(m_concurrency);
     std::shared_ptr<InnerHandle> handle;
+
     {
+        // 获取内存锁以访问m_frees（存放空闲连接句柄）
         LockGuard memoryGuard(m_memory);
         auto &freeSlot = m_frees[slot];
+        // 如果存在空闲连接句柄，则复用该连接
         if (!freeSlot.empty()) {
             handle = freeSlot.back();
             WCTAssert(handle != nullptr);
-            freeSlot.pop_back();
+            freeSlot.pop_back(); // 从空闲列表中移除
         }
     }
 
+    // 若没有可复用连接句柄，则新建一个
     if (handle == nullptr) {
+        // 创建新的数据库连接（底层调用 sqlite3_open_v2）
         handle = generateSlotedHandle(type);
         if (handle == nullptr) {
+            // 若创建失败，减少连接计数并返回nullptr
             m_counter.decreaseHandleCount(writeHint);
             return nullptr;
         }
 
+        // 创建成功后，放入句柄池的管理容器中
         LockGuard memoryGuard(m_memory);
         WCTAssert(m_handles[slot].find(handle) == m_handles[slot].end());
         m_handles[slot].emplace(handle);
 
-        // Clean free handles of the other slots.
+        // 如果超过允许的连接数，则清理其他空闲句柄
         if (!isNumberOfHandlesAllowed()) {
-            purge();
+            purge(); // 清理无用连接
             WCTAssert(isNumberOfHandlesAllowed());
         }
     } else {
+        // 若句柄已复用，调用willReuseSlotedHandle检查连接是否健康
         if (!willReuseSlotedHandle(type, handle.get())) {
+            // 若连接不适合复用，关闭句柄并移除
             handle->close();
             {
                 LockGuard memoryGuard(m_memory);
-                // remove if the exists handle fails in handles
+                // 从管理容器中移除失败的连接句柄
                 m_handles[slot].erase(handle);
             }
             m_counter.decreaseHandleCount(writeHint);
@@ -232,16 +254,23 @@ RecyclableHandle HandlePool::flowOut(HandleType type, bool writeHint)
         }
     }
 
+    // 此时连接句柄一定有效（非空）
     WCTAssert(handle != nullptr);
+
+    // 设置连接的写入提示（writeHint）
     handle->setWriteHint(writeHint);
+    // 标记该连接当前被哪个线程占用
     handle->setActiveThreadId(Thread::getCurrentThreadId());
 
+    // 加锁，确保连接句柄引用赋值线程安全
     m_concurrency.lockShared();
     WCTAssert(referencedHandle.handle == nullptr && referencedHandle.reference == 0);
+    // 缓存连接到线程本地，以便后续本线程复用
     referencedHandle.handle = handle;
     referencedHandle.reference = 1;
-    return RecyclableHandle(
-    handle, std::bind(&HandlePool::flowBack, this, type, std::placeholders::_1));
+
+    // 返回一个封装了连接的 RecyclableHandle，并绑定回收函数 flowBack
+    return RecyclableHandle(handle,std::bind(&HandlePool::flowBack, this, type, std::placeholders::_1));
 }
 
 void HandlePool::flowBack(HandleType type, const std::shared_ptr<InnerHandle> &handle)

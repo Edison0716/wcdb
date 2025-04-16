@@ -38,7 +38,7 @@ RecyclableHandle::RecyclableHandle(const std::nullptr_t &)
 }
 
 RecyclableHandle::RecyclableHandle(const std::shared_ptr<InnerHandle> &value,
-                                   const Super::OnRecycled &onRecycled)
+                                   const OnRecycled &onRecycled)
 : Super(value, onRecycled), m_handle(value.get())
 {
 }
