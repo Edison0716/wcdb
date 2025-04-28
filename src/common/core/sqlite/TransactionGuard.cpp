@@ -30,8 +30,7 @@ namespace WCDB {
 
 TransactionEvent::~TransactionEvent() = default;
 
-TransactionGuard::TransactionGuard(TransactionEvent *event, InnerHandle *handle)
-: m_event(event), m_handle(handle), m_isInTransactionBefore(handle->isInTransaction())
+TransactionGuard::TransactionGuard(TransactionEvent *event, InnerHandle *handle): m_event(event), m_handle(handle), m_isInTransactionBefore(handle->isInTransaction())
 {
     WCTAssert(m_handle != nullptr);
 }

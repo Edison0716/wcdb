@@ -538,16 +538,14 @@ bool AbstractHandle::beginTransaction()
     }
     if (m_transactionLevel > 0) {
         if (m_transactionError == TransactionError::Allowed) {
-            succeed = executeStatement(
-            StatementSavepoint().savepoint(getSavepointName(m_transactionLevel + 1)));
+            succeed = executeStatement(StatementSavepoint().savepoint(getSavepointName(m_transactionLevel + 1)));
         }
         if (succeed) {
             ++m_transactionLevel;
         }
         return succeed;
     } else {
-        static const StatementBegin *s_beginImmediate
-        = new StatementBegin(StatementBegin().beginImmediate());
+        static const StatementBegin *s_beginImmediate= new StatementBegin(StatementBegin().beginImmediate());
         succeed = executeStatement(*s_beginImmediate);
         if (succeed) {
             m_transactionLevel = 1;
